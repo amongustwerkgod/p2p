@@ -171,7 +171,7 @@ jobs:
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
+          name: Peerly
           path: app/build/outputs/apk/release/*.apk
 
   # ════════════════════════════════════════════
@@ -190,7 +190,7 @@ jobs:
       - name: Download Release APK
         uses: actions/download-artifact@v4
         with:
-          name: release-apk
+          name: Peerly
           path: apk/
 
       - name: Create GitHub Release
@@ -217,4 +217,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Creates a tagged GitHub Release with the APK attached.
-        # This is your deployment proof / URL for submission.
+

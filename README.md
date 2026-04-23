@@ -1,8 +1,6 @@
 # Peerly - DevOps Mini Project
 
 **Author:** Saksham Raturi
-shlok Dobriyal
-Vishvajeet Singal
 
 ## 1. Project Title
 Peerly
@@ -37,11 +35,11 @@ The CI/CD pipeline is implemented using GitHub Actions (`ci.yml`) and consists o
 ## 7. Screenshots
 ### Pipeline Success
 ![Pipeline Success](docs/pipeline-success.png)
-*(Note: Add your successful GitHub Actions run screenshot here)*
+
 
 ### Deployment Output
 ![Deployment Output](docs/deployment.png)
-*(Note: Add your GitHub Release / APK deployment screenshot here)*
+
 
 ## 8. Challenges Faced
 - **CodeQL Compilation:** Resolving CodeQL analysis failures by switching to `build-mode: manual` and explicitly defining the Gradle build step (`assembleDebug`) so the autobuilder could correctly trace the Java call graph.
