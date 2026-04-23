@@ -190,7 +190,7 @@ jobs:
       - name: Download Release APK
         uses: actions/download-artifact@v4
         with:
-          name: release-apk
+          name: Peerly
           path: apk/
 
       - name: Create GitHub Release
