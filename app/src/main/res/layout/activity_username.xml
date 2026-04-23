@@ -1,103 +1,98 @@
+<!-- ═══════════════════════════════════════════════════════════════════
+     activity_username.xml  (login screen)
+     Save to: app/src/main/res/layout/activity_username.xml
+═══════════════════════════════════════════════════════════════════ -->
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#0E0E16">
+    android:background="@color/space_bg">
 
-    <!-- Brand + input block -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="64dp"
+        android:text="PEERLY"
+        android:textColor="@color/text_primary"
+        android:textSize="28sp"
+        android:letterSpacing="0.35"
+        android:fontFamily="monospace"
+        android:alpha="0.9" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="104dp"
+        android:text="peer-to-peer messenger"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        android:letterSpacing="0.15"
+        android:fontFamily="monospace" />
+
+    <!-- Earth rises from below in code -->
+    <com.example.p2p.EarthView
+        android:id="@+id/earthView"
+        android:layout_width="220dp"
+        android:layout_height="220dp"
+        android:layout_gravity="center"
+        android:layout_marginBottom="80dp" />
+
+    <!-- Card slides up from bottom -->
     <LinearLayout
+        android:id="@+id/loginCard"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_bottom_card"
         android:orientation="vertical"
-        android:gravity="center"
-        android:paddingStart="28dp"
-        android:paddingEnd="28dp">
+        android:padding="28dp"
+        android:paddingBottom="48dp"
+        android:visibility="invisible">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Peerly"
-            android:textSize="44sp"
-            android:textColor="#E0DFFF"
-            android:letterSpacing="0.25"
-            android:fontFamily="monospace"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="PEER-TO-PEER MESSENGER"
-            android:textSize="10sp"
-            android:textColor="#55557A"
-            android:letterSpacing="0.2"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="40dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Choose your handle"
-            android:textSize="13sp"
-            android:textColor="#8888AA"
-            android:layout_marginBottom="10dp"
-            android:layout_gravity="start"/>
+            android:text="choose a callsign"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:letterSpacing="0.15"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="12dp" />
 
         <EditText
             android:id="@+id/usernameInput"
+            style="@style/PeerlyEditText"
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:hint="swift_fox or just_alex…"
-            android:textColor="#E0DFFF"
-            android:textColorHint="#44445A"
-            android:textSize="15sp"
-            android:fontFamily="monospace"
-            android:background="@drawable/input_bg"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
+            android:layout_height="wrap_content"
+            android:hint="username"
+            android:imeOptions="actionDone"
             android:inputType="textNoSuggestions"
             android:maxLength="20"
-            android:layout_marginBottom="12dp"/>
+            android:singleLine="true" />
 
         <Button
-            android:id="@+id/confirmUsernameBtn"
+            android:id="@+id/joinButton"
+            style="@style/PeerlyButton"
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:text="Enter"
-            android:textSize="15sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#4A4AE0"
-            android:stateListAnimator="@null"/>
-
-    </LinearLayout>
-
-    <!-- Online users bottom panel -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:background="@drawable/panel_bg">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="JOIN THE NETWORK" />
 
         <TextView
+            android:id="@+id/onlineCountText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="ONLINE NOW — TAP TO USE"
-            android:textSize="10sp"
-            android:textColor="#44446A"
-            android:letterSpacing="0.15"
-            android:paddingStart="20dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="8dp"/>
-
-        <ListView
-            android:id="@+id/existingUsersList"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:divider="#1C1C30"
-            android:dividerHeight="1dp"/>
-
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/online_green"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            tools:text="● 7 online now" />
     </LinearLayout>
-</LinearLayout>
+
+</FrameLayout>
+

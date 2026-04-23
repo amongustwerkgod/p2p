@@ -1,147 +1,147 @@
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     activity_chat.xml  (peer-to-peer chat)
+     Save to: app/src/main/res/layout/activity_chat.xml
+═══════════════════════════════════════════════════════════════════ -->
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#0E0E16">
+    android:background="@color/space_bg"
+    android:orientation="vertical">
 
     <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
+        android:layout_height="64dp"
+        android:background="@color/input_bar_bg"
         android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:background="#13131E"
-        android:elevation="2dp">
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="16dp">
 
-        <!-- Back arrow -->
-        <TextView
-            android:id="@+id/backBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="←"
-            android:textSize="20sp"
-            android:textColor="#7777BB"
-            android:paddingEnd="14dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"/>
+        <ImageButton
+            android:id="@+id/backButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
+            android:contentDescription="Back"
+            android:tint="@color/text_primary" />
 
-        <!-- Lock icon + room code -->
         <TextView
+            android:id="@+id/peerAvatar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:background="@drawable/bg_peer_avatar"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:fontFamily="monospace"
+            tools:text="A" />
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🔒"
-            android:textSize="12sp"
-            android:paddingEnd="6dp"/>
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+
+            <TextView
+                android:id="@+id/peerNameLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:fontFamily="monospace"
+                tools:text="alice" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/statusDot"
+                    android:layout_width="6dp"
+                    android:layout_height="6dp"
+                    android:background="@drawable/dot_online" />
+
+                <TextView
+                    android:id="@+id/statusLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:textColor="@color/online_green"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    tools:text="connected" />
+            </LinearLayout>
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/roomLabel"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="4"
-            android:textSize="14sp"
-            android:textColor="#9999CC"
-            android:fontFamily="monospace"/>
-
-        <TextView
-            android:id="@+id/copyCodeHint"
+            android:id="@+id/roomCodeLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="tap to copy"
+            android:background="@drawable/bg_room_code"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="@color/accent"
             android:textSize="10sp"
-            android:textColor="#33334A"/>
-
+            android:fontFamily="monospace"
+            android:clickable="true"
+            android:focusable="true"
+            tools:text="swift-tiger-42" />
     </LinearLayout>
 
-    <!-- Connection status bar (hidden by default, shown on connect/disconnect) -->
-    <TextView
-        android:id="@+id/statusBar"
-        android:layout_width="match_parent"
-        android:layout_height="30dp"
-        android:gravity="center"
-        android:textSize="11sp"
-        android:textColor="#44CC88"
-        android:fontFamily="monospace"
-        android:background="#0D1F18"
-        android:text="Waiting for peer…"
-        android:visibility="visible"/>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#1C1C30"/>
-
     <!-- Messages -->
-    <ScrollView
-        android:id="@+id/chatScroll"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:overScrollMode="never"
-        android:fillViewport="true">
+        android:clipToPadding="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:scrollbars="none" />
 
-        <TextView
-            android:id="@+id/chatBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textColor="#CCCCEE"
-            android:fontFamily="monospace"
-            android:lineSpacingMultiplier="1.65"
-            android:padding="16dp"/>
-
-    </ScrollView>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#1C1C30"/>
-
-    <!-- Input -->
+    <!-- Input bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="10dp"
+        android:background="@color/input_bar_bg"
         android:gravity="center_vertical"
-        android:background="#13131E">
+        android:orientation="horizontal"
+        android:padding="10dp">
 
         <EditText
             android:id="@+id/messageInput"
+            style="@style/PeerlyEditText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Type a message…"
-            android:textColor="#E0DFFF"
-            android:textColorHint="#44445A"
-            android:textSize="14sp"
-            android:fontFamily="monospace"
-            android:background="@drawable/input_bg"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:maxLines="5"
-            android:inputType="textMultiLine|textCapSentences"
-            android:layout_marginEnd="8dp"/>
+            android:hint="message…"
+            android:imeOptions="actionSend"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLines="4"
+            android:minLines="1" />
 
-        <Button
+        <ImageButton
             android:id="@+id/sendButton"
-            android:layout_width="wrap_content"
-            android:layout_height="46dp"
-            android:text="Send"
-            android:enabled="false"
-            android:textSize="13sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#4A4AE0"
-            android:stateListAnimator="@null"
-            android:paddingStart="18dp"
-            android:paddingEnd="18dp"
-            android:minWidth="0dp"/>
-
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_send_button"
+            android:src="@drawable/ic_send"
+            android:contentDescription="Send"
+            android:tint="@color/white"
+            android:padding="10dp"
+            android:enabled="false" />
     </LinearLayout>
+
 </LinearLayout>
