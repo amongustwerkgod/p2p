@@ -87,9 +87,9 @@ public class HubView extends View {
         peerTextPaint.setFakeBoldText(true);
         peerTextPaint.setTypeface(Typeface.create("monospace", Typeface.BOLD));
         
-        peerLabelPaint.setColor(0xFFA0A0FF);
+        peerLabelPaint.setColor(0xFFCCCCFF);
         peerLabelPaint.setTextAlign(Paint.Align.CENTER);
-        peerLabelPaint.setTypeface(Typeface.MONOSPACE);
+        peerLabelPaint.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
         
         dashedPaint.setStyle(Paint.Style.STROKE);
         dashedPaint.setColor(0x257070FF);
@@ -164,13 +164,14 @@ public class HubView extends View {
 
         // Dashed lines to peers
         for (Peer p : peers) {
-            float bob = 15f * (float) Math.sin(t * 2.2f + p.bobPhase);
-            float orbitX = (float)Math.cos(p.angle) * earthR * 2.1f;
-            float orbitY = (float)Math.sin(p.angle) * earthR * 0.55f;
+            float bob = 12f * (float) Math.sin(t * 1.8f + p.bobPhase);
+            // Reduced orbit radius to ensure peers stay on screen
+            float orbitX = (float)Math.cos(p.angle) * (W * 0.38f); 
+            float orbitY = (float)Math.sin(p.angle) * (earthR * 0.5f);
             p.screenX = cx + orbitX;
             p.screenY = ey + orbitY + bob;
             
-            dashedPaint.setAlpha((int)(p.entryScale * 37)); // 0.15 alpha
+            dashedPaint.setAlpha((int)(p.entryScale * 30)); 
             canvas.drawLine(p.screenX, p.screenY, cx, ey, dashedPaint);
         }
 
@@ -203,16 +204,32 @@ public class HubView extends View {
             canvas.drawCircle(p.screenX, p.screenY, currentPr, peerBgPaint);
             canvas.drawCircle(p.screenX, p.screenY, currentPr, peerBorderPaint);
             
-            if (p.name != null && p.name.length() > 0 && scale > 0.5f) {
+            if (p.name != null && p.name.length() > 0 && scale > 0.4f) {
                 peerTextPaint.setAlpha((int)(scale * 255));
-                peerLabelPaint.setAlpha((int)(scale * 255));
+                peerLabelPaint.setAlpha((int)(scale * 200));
+
+                // Initial character inside bubble
                 canvas.drawText(String.valueOf(Character.toUpperCase(p.name.charAt(0))),
                     p.screenX, p.screenY + peerTextPaint.getTextSize() * 0.35f, peerTextPaint);
-                canvas.drawText(p.name.toLowerCase(), p.screenX, p.screenY + currentPr + peerLabelPaint.getTextSize() * 1.4f, peerLabelPaint);
+                
+                // Full name label below
+                String label = p.name.toLowerCase();
+                if (label.length() > 10) label = label.substring(0, 8) + "..";
+                
+                float textWidth = peerLabelPaint.measureText(label);
+                float labelX = p.screenX;
+                float margin = 30f;
+                
+                // Keep label text within screen bounds
+                if (labelX - textWidth/2 < margin) labelX = textWidth/2 + margin;
+                if (labelX + textWidth/2 > W - margin) labelX = W - textWidth/2 - margin;
+
+                canvas.drawText(label, labelX, p.screenY + currentPr + peerLabelPaint.getTextSize() * 1.5f, peerLabelPaint);
             }
         }
 
-        canvas.drawText("@" + username.toLowerCase(), cx, 110, usernamePaint);
+        // Draw username at the top, adjusted for potential status bar
+        canvas.drawText("@" + username.toLowerCase(), cx, H * 0.08f + 30, usernamePaint);
     }
 
     private void drawEarth(Canvas canvas, float cx, float cy, float r) {
