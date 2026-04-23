@@ -1,5 +1,8 @@
 package com.example.Peerly;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Message {
     public enum Type { TEXT, IMAGE }
 
@@ -10,6 +13,7 @@ public class Message {
     public final Type type;
     public final boolean isSent;
     public final long timestamp;
+    public Map<String, String> reactions = new HashMap<>(); // userId -> emoji
 
     public Message(String sender, String text, boolean isSent) {
         this(null, sender, text, null, Type.TEXT, isSent);

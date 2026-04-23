@@ -35,9 +35,19 @@ public class WorldChatActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerView);
         adapter = new MessageAdapter(username);
         
-        adapter.setOnMessageLongClickListener((message, position) -> {
-            if (message.sender.equals(username)) {
-                showDeleteDialog(message, position);
+        adapter.setOnMessageInteractionListener(new MessageAdapter.OnMessageInteractionListener() {
+            @Override
+            public void onMessageLongClick(Message message, int position) {
+                if (message.sender.equals(username)) {
+                    showDeleteDialog(message, position);
+                } else {
+                    showReactionDialog(message);
+                }
+            }
+
+            @Override
+            public void onReactionClick(Message message, int position) {
+                showReactionDialog(message);
             }
         });
 
@@ -65,6 +75,18 @@ public class WorldChatActivity extends AppCompatActivity {
         sendBtn.setOnClickListener(v -> sendMessage());
     }
 
+    private void showReactionDialog(Message message) {
+        String[] emojis = {"❤️", "😂", "😮", "😢", "🔥", "👍"};
+        new AlertDialog.Builder(this)
+                .setTitle("React")
+                .setItems(emojis, (dialog, which) -> {
+                    if (message.key != null) {
+                        chatRef.child(message.key).child("reactions").child(username).setValue(emojis[which]);
+                    }
+                })
+                .show();
+    }
+
     private void showDeleteDialog(Message message, int position) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Message")
@@ -82,19 +104,12 @@ public class WorldChatActivity extends AppCompatActivity {
         chatListener = chatRef.limitToLast(100).addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot snapshot, String prevKey) {
-                String from = snapshot.child("from").getValue(String.class);
-                String text = snapshot.child("text").getValue(String.class);
-                String key = snapshot.getKey();
-                if (from != null && text != null) {
-                    boolean isMe = from.equals(username);
-                    runOnUiThread(() -> {
-                        // Check if message already exists (e.g. added locally)
-                        if (adapter.getPositionOfMessage(key) == -1) {
-                            adapter.addMessage(new Message(key, from, text, isMe));
-                            scrollToBottom();
-                        }
-                    });
-                }
+                processMessageSnapshot(snapshot);
+            }
+
+            @Override
+            public void onChildChanged(DataSnapshot snapshot, String prevKey) {
+                processMessageSnapshot(snapshot);
             }
 
             @Override
@@ -110,10 +125,38 @@ public class WorldChatActivity extends AppCompatActivity {
                 }
             }
 
-            @Override public void onChildChanged(DataSnapshot s, String p) {}
             @Override public void onChildMoved(DataSnapshot s, String p) {}
             @Override public void onCancelled(DatabaseError e) {}
         });
+    }
+
+    private void processMessageSnapshot(DataSnapshot snapshot) {
+        String from = snapshot.child("from").getValue(String.class);
+        String text = snapshot.child("text").getValue(String.class);
+        String key = snapshot.getKey();
+        if (from != null && text != null) {
+            boolean isMe = from.equals(username);
+            runOnUiThread(() -> {
+                int existingPos = adapter.getPositionOfMessage(key);
+                Message msg = new Message(key, from, text, isMe);
+                
+                DataSnapshot reactionsSnap = snapshot.child("reactions");
+                if (reactionsSnap.exists()) {
+                    for (DataSnapshot r : reactionsSnap.getChildren()) {
+                        msg.reactions.put(r.getKey(), r.getValue(String.class));
+                    }
+                }
+
+                if (existingPos == -1) {
+                    adapter.addMessage(msg);
+                    scrollToBottom();
+                } else {
+                    // Update existing message (e.g. for reactions)
+                    adapter.removeMessage(existingPos);
+                    adapter.addMessage(msg); // Simplified update
+                }
+            });
+        }
     }
 
     private void sendMessage() {
@@ -125,9 +168,7 @@ public class WorldChatActivity extends AppCompatActivity {
         msg.put("text", text);
         msg.put("ts", ServerValue.TIMESTAMP);
 
-        // We let the listener handle adding to adapter for consistency and getting the key
         chatRef.push().setValue(msg);
-        
         messageInput.setText("");
     }
 

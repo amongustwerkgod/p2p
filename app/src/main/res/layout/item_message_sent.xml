@@ -2,6 +2,7 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -44,7 +45,22 @@
             android:scaleType="centerCrop"
             android:minHeight="100dp"
             android:contentDescription="Sent image" />
-
     </com.google.android.material.card.MaterialCardView>
+
+    <TextView
+        android:id="@+id/reactionContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="-8dp"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/bg_room_code"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:textSize="12sp"
+        android:elevation="3dp"
+        android:visibility="gone"
+        tools:text="❤️ 2" />
 
 </LinearLayout>

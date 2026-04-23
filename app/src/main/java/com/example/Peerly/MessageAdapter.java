@@ -9,22 +9,24 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
 
-    public interface OnMessageLongClickListener {
+    public interface OnMessageInteractionListener {
         void onMessageLongClick(Message message, int position);
+        void onReactionClick(Message message, int position);
     }
 
     private static final int TYPE_SENT = 0, TYPE_RECV = 1;
     private final List<Message> messages = new ArrayList<>();
     private final String myUsername;
-    private OnMessageLongClickListener longClickListener;
+    private OnMessageInteractionListener interactionListener;
 
     public MessageAdapter(String myUsername) { this.myUsername = myUsername; }
 
-    public void setOnMessageLongClickListener(OnMessageLongClickListener listener) {
-        this.longClickListener = listener;
+    public void setOnMessageInteractionListener(OnMessageInteractionListener listener) {
+        this.interactionListener = listener;
     }
 
     public void addMessage(Message m) {
@@ -81,14 +83,38 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
         }
 
         if (h.sender != null) h.sender.setText(m.sender);
+
+        // Reactions logic
+        if (m.reactions != null && !m.reactions.isEmpty()) {
+            h.reactionContainer.setVisibility(View.VISIBLE);
+            StringBuilder sb = new StringBuilder();
+            Map<String, Integer> counts = new java.util.HashMap<>();
+            for (String r : m.reactions.values()) {
+                counts.put(r, counts.getOrDefault(r, 0) + 1);
+            }
+            for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+                sb.append(entry.getKey()).append(" ").append(entry.getValue()).append("  ");
+            }
+            h.reactionContainer.setText(sb.toString().trim());
+        } else {
+            h.reactionContainer.setVisibility(View.GONE);
+        }
         
         h.itemView.setOnLongClickListener(v -> {
-            if (longClickListener != null) {
-                longClickListener.onMessageLongClick(m, h.getAdapterPosition());
+            if (interactionListener != null) {
+                interactionListener.onMessageLongClick(m, h.getAdapterPosition());
                 return true;
             }
             return false;
         });
+
+        if (h.reactionContainer != null) {
+            h.reactionContainer.setOnClickListener(v -> {
+                if (interactionListener != null) {
+                    interactionListener.onReactionClick(m, h.getAdapterPosition());
+                }
+            });
+        }
 
         // Entrance animation
         h.itemView.setAlpha(0f);
@@ -99,7 +125,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     }
 
     static class MsgVH extends RecyclerView.ViewHolder {
-        TextView text, sender;
+        TextView text, sender, reactionContainer;
         ImageView image;
         View imageCard;
 
@@ -109,6 +135,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
             sender = v.findViewById(R.id.msgSender);
             image  = v.findViewById(R.id.msgImage);
             imageCard = v.findViewById(R.id.msgImageCard);
+            reactionContainer = v.findViewById(R.id.reactionContainer);
         }
     }
 }
