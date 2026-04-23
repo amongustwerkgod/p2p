@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Log;
 import com.google.firebase.database.*;
 import org.webrtc.*;
+import org.webrtc.audio.JavaAudioDeviceModule;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -20,6 +21,10 @@ public class WebRtcManager {
     private final Map<String, DataChannel> dataChannels = new ConcurrentHashMap<>();
     private final List<String> activePeers = new ArrayList<>();
     
+    private AudioSource audioSource;
+    private AudioTrack localAudioTrack;
+    private boolean isMuted = false;
+
     private DatabaseReference roomRef;
     private String roomId;
     private String myId;
@@ -39,12 +44,11 @@ public class WebRtcManager {
         this.roomRef = FirebaseDatabase.getInstance().getReference("rooms").child(roomId);
 
         initializePeerConnectionFactory(context);
+        createAudioTrack();
         
-        // Register myself in the room
         roomRef.child("members").child(myId).setValue(true);
         roomRef.child("members").child(myId).onDisconnect().removeValue();
 
-        // Listen for other members
         roomRef.child("members").addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot snapshot, String s) {
@@ -54,10 +58,7 @@ public class WebRtcManager {
                         activePeers.add(peerId);
                         listener.onPeersChanged(new ArrayList<>(activePeers));
                     }
-                    // Partial Mesh Logic: Connect if myId < peerId (lexicographical)
-                    if (myId.compareTo(peerId) < 0) {
-                        initiateConnection(peerId);
-                    }
+                    if (myId.compareTo(peerId) < 0) initiateConnection(peerId);
                 }
             }
             @Override public void onChildRemoved(DataSnapshot s) {
@@ -83,12 +84,30 @@ public class WebRtcManager {
         PeerConnectionFactory.initialize(options);
         factory = PeerConnectionFactory.builder()
                 .setOptions(new PeerConnectionFactory.Options())
+                .setAudioDeviceModule(JavaAudioDeviceModule.builder(context)
+                        .setUseHardwareAcousticEchoCanceler(true)
+                        .setUseHardwareNoiseSuppressor(true)
+                        .createAudioDeviceModule())
                 .createPeerConnectionFactory();
+    }
+
+    private void createAudioTrack() {
+        MediaConstraints audioConstraints = new MediaConstraints();
+        audioSource = factory.createAudioSource(audioConstraints);
+        localAudioTrack = factory.createAudioTrack("ARDAMSa0", audioSource);
+        localAudioTrack.setEnabled(true);
+    }
+
+    public void setMute(boolean mute) {
+        isMuted = mute;
+        if (localAudioTrack != null) localAudioTrack.setEnabled(!mute);
     }
 
     private void initiateConnection(String peerId) {
         PeerConnection pc = createPeerConnection(peerId);
         peerConnections.put(peerId, pc);
+        
+        pc.addTrack(localAudioTrack, List.of("ARDAMS"));
         
         DataChannel.Init init = new DataChannel.Init();
         DataChannel dc = pc.createDataChannel("chat", init);
@@ -120,12 +139,14 @@ public class WebRtcManager {
                 roomRef.child("signals").child(peerId).child(myId).child("candidates").push().setValue(candidate);
             }
 
-            @Override public void onDataChannel(DataChannel dc) {
-                setupDataChannel(peerId, dc);
-            }
-
+            @Override public void onDataChannel(DataChannel dc) { setupDataChannel(peerId, dc); }
             @Override public void onIceConnectionChange(PeerConnection.IceConnectionState state) {
                 listener.onStatusChanged("Peer " + peerId + ": " + state.name());
+            }
+            @Override public void onTrack(RtpTransceiver transceiver) {
+                if (transceiver.getReceiver().track() instanceof AudioTrack) {
+                    Log.d(TAG, "Received remote audio track from " + peerId);
+                }
             }
 
             @Override public void onSignalingChange(PeerConnection.SignalingState state) {}
@@ -149,9 +170,7 @@ public class WebRtcManager {
                 listener.onMessageReceived(peerId, msg);
             }
             @Override public void onBufferedAmountChange(long l) {}
-            @Override public void onStateChange() {
-                Log.d(TAG, "DC State with " + peerId + ": " + dc.state().name());
-            }
+            @Override public void onStateChange() {}
         });
         dataChannels.put(peerId, dc);
     }
@@ -162,14 +181,8 @@ public class WebRtcManager {
             public void onChildAdded(DataSnapshot snapshot, String s) {
                 String fromPeerId = snapshot.getKey();
                 if (fromPeerId == null) return;
-                
-                // Handle Offer
                 String offer = snapshot.child("offer").getValue(String.class);
-                if (offer != null) {
-                    handleOffer(fromPeerId, offer);
-                }
-                
-                // Handle Candidates
+                if (offer != null) handleOffer(fromPeerId, offer);
                 snapshot.child("candidates").getRef().addChildEventListener(new ChildEventListener() {
                     @Override
                     public void onChildAdded(DataSnapshot snap, String s) {
@@ -188,7 +201,6 @@ public class WebRtcManager {
                 });
             }
             @Override public void onChildChanged(DataSnapshot snapshot, String s) {
-                // Handle Answer
                 String answer = snapshot.child("answer").getValue(String.class);
                 if (answer != null) {
                     PeerConnection pc = peerConnections.get(snapshot.getKey());
@@ -204,6 +216,7 @@ public class WebRtcManager {
     private void handleOffer(String peerId, String sdpText) {
         PeerConnection pc = createPeerConnection(peerId);
         peerConnections.put(peerId, pc);
+        pc.addTrack(localAudioTrack, List.of("ARDAMS"));
         pc.setRemoteDescription(new SdpObserverAdapter(), new SessionDescription(SessionDescription.Type.OFFER, sdpText));
         pc.createAnswer(new SdpObserverAdapter() {
             @Override
@@ -239,6 +252,8 @@ public class WebRtcManager {
     public void onDestroy() {
         roomRef.child("members").child(myId).removeValue();
         roomRef.child("signals").child(myId).removeValue();
+        if (localAudioTrack != null) localAudioTrack.dispose();
+        if (audioSource != null) audioSource.dispose();
         for (PeerConnection pc : peerConnections.values()) pc.dispose();
         peerConnections.clear();
         dataChannels.clear();

@@ -1,6 +1,8 @@
 package com.example.Peerly;
 
+import android.media.MediaPlayer;
 import android.view.*;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -68,23 +70,27 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     public void onBindViewHolder(@NonNull MsgVH h, int pos) {
         Message m = messages.get(pos);
         
+        h.text.setVisibility(View.GONE);
+        h.imageCard.setVisibility(View.GONE);
+        h.audioContainer.setVisibility(View.GONE);
+
         if (m.type == Message.Type.IMAGE) {
-            h.text.setVisibility(View.GONE);
             h.imageCard.setVisibility(View.VISIBLE);
             Glide.with(h.itemView.getContext())
-                .load(m.imageUrl)
+                .load(m.mediaUrl)
                 .transition(DrawableTransitionOptions.withCrossFade())
                 .placeholder(R.drawable.bg_bubble_recv)
                 .into(h.image);
+        } else if (m.type == Message.Type.AUDIO) {
+            h.audioContainer.setVisibility(View.VISIBLE);
+            h.audioPlayBtn.setOnClickListener(v -> playAudio(m.mediaUrl));
         } else {
             h.text.setVisibility(View.VISIBLE);
-            h.imageCard.setVisibility(View.GONE);
             h.text.setText(m.text);
         }
 
         if (h.sender != null) h.sender.setText(m.sender);
 
-        // Reactions logic
         if (m.reactions != null && !m.reactions.isEmpty()) {
             h.reactionContainer.setVisibility(View.VISIBLE);
             StringBuilder sb = new StringBuilder();
@@ -115,19 +121,25 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
                 }
             });
         }
+    }
 
-        // Entrance animation
-        h.itemView.setAlpha(0f);
-        h.itemView.setScaleX(0.9f);
-        h.itemView.setScaleY(0.9f);
-        h.itemView.animate().alpha(1f).scaleX(1f).scaleY(1f)
-            .setDuration(200).start();
+    private void playAudio(String url) {
+        try {
+            MediaPlayer mp = new MediaPlayer();
+            mp.setDataSource(url);
+            mp.prepare();
+            mp.start();
+            mp.setOnCompletionListener(MediaPlayer::release);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     static class MsgVH extends RecyclerView.ViewHolder {
         TextView text, sender, reactionContainer;
         ImageView image;
-        View imageCard;
+        View imageCard, audioContainer;
+        ImageButton audioPlayBtn;
 
         MsgVH(View v) {
             super(v);
@@ -136,6 +148,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
             image  = v.findViewById(R.id.msgImage);
             imageCard = v.findViewById(R.id.msgImageCard);
             reactionContainer = v.findViewById(R.id.reactionContainer);
+            audioContainer = v.findViewById(R.id.audioContainer);
+            audioPlayBtn = v.findViewById(R.id.audioPlayBtn);
         }
     }
 }
