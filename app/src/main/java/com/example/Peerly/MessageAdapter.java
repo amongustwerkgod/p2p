@@ -37,6 +37,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     }
 
     public int getPositionOfMessage(String key) {
+        if (key == null) return -1;
         for (int i = 0; i < messages.size(); i++) {
             if (key.equals(messages.get(i).key)) return i;
         }
@@ -44,6 +45,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     }
 
     @Override public int getItemViewType(int pos) {
+        // Updated to use the isSent boolean directly from the Message object
         return messages.get(pos).isSent ? TYPE_SENT : TYPE_RECV;
     }
 

@@ -2,6 +2,7 @@ package com.example.Peerly;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.WindowManager;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.database.*;
@@ -49,8 +50,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         hubView.setOnPeerClickedListener(peerName -> {
-            // In a real app, you'd generate a unique roomId between you and the peer.
-            // For this demo, we'll use a deterministic room ID based on names.
             String roomId = getRoomId(username, peerName);
             Intent i = new Intent(this, ChatActivity.class);
             i.putExtra("username", username);
@@ -67,16 +66,21 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
                 Set<String> activePeers = new HashSet<>();
+                Log.d("Peerly", "Presence snapshot changed: " + snapshot.getChildrenCount() + " total nodes");
                 for (DataSnapshot child : snapshot.getChildren()) {
                     Boolean online = child.child("online").getValue(Boolean.class);
                     String name = child.getKey();
+                    Log.d("Peerly", "Peer check: " + name + " online=" + online);
                     if (Boolean.TRUE.equals(online) && name != null && !name.equals(username)) {
                         activePeers.add(name);
                     }
                 }
+                Log.d("Peerly", "Updating HubView with " + activePeers.size() + " active peers");
                 hubView.setPeers(activePeers);
             }
-            @Override public void onCancelled(DatabaseError error) {}
+            @Override public void onCancelled(DatabaseError error) {
+                Log.e("Peerly", "Firebase presence error: " + error.getMessage());
+            }
         });
     }
 
@@ -100,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        // We don't set online=false here so the orbit persists while in a sub-activity
         hubView.pauseAnimations();
     }
 

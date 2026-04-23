@@ -3,18 +3,13 @@ package com.example.Peerly;
 import android.animation.*;
 import android.content.Context;
 import android.graphics.*;
-import android.os.Handler;
-import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.*;
 import android.view.animation.*;
 import java.util.*;
 
 /**
- * Full-screen custom View that renders:
- *   - Animated starfield background
- *   - Rotating Earth in the center
- *   - Peer bubbles orbiting the earth with individual floating animations
- *   - Dashed lines from each peer to the earth center
+ * Polished HubView with improved visuals, glow effects, and smoother transitions.
  */
 public class HubView extends View {
 
@@ -26,12 +21,10 @@ public class HubView extends View {
     public void setOnEarthClickedListener(OnEarthClickedListener l) { earthListener = l; }
     public void setOnPeerClickedListener(OnPeerClickedListener l)   { peerListener  = l; }
 
-    // Dimensions
     private float W, H, cx, cy;
-    private float earthR  = 0;   // set in onSizeChanged
-    private float earthY  = 0;   // animated offset from center
+    private float earthR  = 0;
+    private float earthY  = 0;
 
-    // Painting
     private Paint oceanPaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint landPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint atmoPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -43,35 +36,31 @@ public class HubView extends View {
     private Paint dashedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint starPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint hintPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Paint usernamePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    // Stars
     private static class Star { float x, y, r, phase, speed; }
     private List<Star> stars = new ArrayList<>();
 
-    // Peers
     private static class Peer {
         String name; float angle, dist, bobPhase;
-        float screenX, screenY; // computed each frame
+        float screenX, screenY;
+        float entryScale = 0f; // For entry animation
     }
     private List<Peer> peers = new ArrayList<>();
 
-    // Animation state
     private ValueAnimator frameAnim;
     private float earthRotation = 0f;
-    private float t = 0; // Time in seconds
+    private float t = 0;
 
-    // Sink/rise
     private boolean isSinking = false;
     private boolean isRising  = false;
     private ValueAnimator sinkAnim;
     private ValueAnimator riseAnim;
     private Runnable afterSink;
 
-    // Username label
     private String username;
-    private Paint  usernamePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    // Continent data [relX, relY, relRx, relRy, tiltDeg]
     private final float[][] CONTINENTS = {
         { -0.08f, -0.18f, 0.27f, 0.22f,  10f },
         { -0.48f, -0.20f, 0.18f, 0.30f,  -5f },
@@ -87,43 +76,45 @@ public class HubView extends View {
     }
 
     private void init() {
-        landPaint.setColor(0xFF1e6640);
-
+        landPaint.setColor(0xFF2E8B57); // Sea Green
+        
         peerBorderPaint.setStyle(Paint.Style.STROKE);
-        peerBorderPaint.setStrokeWidth(1.5f);
-        peerBorderPaint.setColor(0xFF3030a0);
-
-        peerTextPaint.setColor(0xFFc8c8ff);
+        peerBorderPaint.setStrokeWidth(2f);
+        peerBorderPaint.setColor(0xFF7070FF);
+        
+        peerTextPaint.setColor(0xFFFFFFFF);
         peerTextPaint.setTextAlign(Paint.Align.CENTER);
         peerTextPaint.setFakeBoldText(true);
-        peerTextPaint.setTypeface(Typeface.MONOSPACE);
-
-        peerLabelPaint.setColor(0xFF6060a0);
+        peerTextPaint.setTypeface(Typeface.create("monospace", Typeface.BOLD));
+        
+        peerLabelPaint.setColor(0xFFA0A0FF);
         peerLabelPaint.setTextAlign(Paint.Align.CENTER);
         peerLabelPaint.setTypeface(Typeface.MONOSPACE);
-
+        
         dashedPaint.setStyle(Paint.Style.STROKE);
-        dashedPaint.setColor(0x403232a0);
-        dashedPaint.setStrokeWidth(1f);
-        dashedPaint.setPathEffect(new DashPathEffect(new float[]{8f, 12f}, 0));
-
-        hintPaint.setColor(0xFFC8C8FF); // Base color, alpha set in onDraw
+        dashedPaint.setColor(0x257070FF);
+        dashedPaint.setStrokeWidth(1.5f);
+        dashedPaint.setPathEffect(new DashPathEffect(new float[]{10f, 15f}, 0));
+        
+        hintPaint.setColor(0xFF7070FF);
         hintPaint.setTextAlign(Paint.Align.CENTER);
         hintPaint.setTypeface(Typeface.MONOSPACE);
-
-        usernamePaint.setColor(0xFF6060a0);
+        hintPaint.setLetterSpacing(0.1f);
+        
+        usernamePaint.setColor(0xFF8080B0);
         usernamePaint.setTextAlign(Paint.Align.CENTER);
-        usernamePaint.setTypeface(Typeface.MONOSPACE);
+        usernamePaint.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
+        usernamePaint.setLetterSpacing(0.2f);
 
-        // Use a 0..1 animator that repeats to drive a smooth, continuous time 't'
+        glowPaint.setStyle(Paint.Style.FILL);
+
         frameAnim = ValueAnimator.ofFloat(0f, 1f);
         frameAnim.setDuration(1000);
         frameAnim.setRepeatCount(ValueAnimator.INFINITE);
         frameAnim.setInterpolator(new LinearInterpolator());
         frameAnim.addUpdateListener(a -> {
-            // Using currentPlayTime / 1000.0 gives us a stable 't' in seconds
             t = a.getCurrentPlayTime() / 1000f;
-            earthRotation = t * 0.2f; // Smooth rotation based on time
+            earthRotation = t * 0.08f;
             invalidate();
         });
     }
@@ -131,83 +122,113 @@ public class HubView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         W = w; H = h; cx = W/2f; cy = H/2f;
-        earthR = Math.min(W, H) * 0.23f;
-        if (!isSinking && !isRising) earthY = cy * 0.85f;
+        earthR = Math.min(W, H) * 0.22f;
+        if (!isSinking && !isRising) earthY = cy * 0.82f;
 
         stars.clear();
-        Random rnd = new Random(42);
-        for (int i = 0; i < 200; i++) {
+        Random rnd = new Random(123);
+        for (int i = 0; i < 180; i++) {
             Star s = new Star();
             s.x = rnd.nextFloat() * W;
             s.y = rnd.nextFloat() * H;
-            s.r = rnd.nextFloat() * 1.5f + 0.3f;
+            s.r = rnd.nextFloat() * 1.2f + 0.4f;
             s.phase = rnd.nextFloat() * (float)(Math.PI * 2);
-            s.speed = rnd.nextFloat() * 2.0f + 0.5f; // adjusted for seconds
+            s.speed = rnd.nextFloat() * 1.2f + 0.3f;
             stars.add(s);
         }
 
-        peerTextPaint.setTextSize(earthR * 0.35f);
-        peerLabelPaint.setTextSize(earthR * 0.20f);
-        hintPaint.setTextSize(earthR * 0.18f);
+        peerTextPaint.setTextSize(earthR * 0.32f);
+        peerLabelPaint.setTextSize(earthR * 0.18f);
+        hintPaint.setTextSize(earthR * 0.16f);
         usernamePaint.setTextSize(earthR * 0.18f);
-        starPaint.setColor(0xFFb4b4ff);
-        
-        for (Peer p : peers) p.dist = earthR * 1.5f;
+        starPaint.setColor(0xFFB0B0FF);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
-        canvas.drawColor(0xFF03030F);
+        // Dark space gradient background
+        Paint bgPaint = new Paint();
+        RadialGradient bgGrad = new RadialGradient(cx, cy, Math.max(W, H),
+                new int[]{0xFF08081A, 0xFF03030F}, null, Shader.TileMode.CLAMP);
+        bgPaint.setShader(bgGrad);
+        canvas.drawRect(0, 0, W, H, bgPaint);
 
-        // Stars
+        // Stars with smooth twinkle
         for (Star s : stars) {
-            float a = 0.25f + 0.45f * (float) Math.sin(s.phase + t * s.speed);
+            float a = 0.15f + 0.5f * (float) Math.sin(s.phase + t * s.speed);
             starPaint.setAlpha((int)(Math.max(0, Math.min(1, a)) * 255));
             canvas.drawCircle(s.x, s.y, s.r, starPaint);
         }
 
         float ey = earthY;
 
-        // Dashed lines
+        // Dashed lines to peers
         for (Peer p : peers) {
-            float bob = 12f * (float) Math.sin(t * 3.0f + p.bobPhase);
-            p.screenX = cx + (float)Math.cos(p.angle) * p.dist;
-            p.screenY = ey - earthR * 0.1f + (float)Math.sin(p.angle) * p.dist * 0.4f + bob;
+            float bob = 15f * (float) Math.sin(t * 2.2f + p.bobPhase);
+            float orbitX = (float)Math.cos(p.angle) * earthR * 2.1f;
+            float orbitY = (float)Math.sin(p.angle) * earthR * 0.55f;
+            p.screenX = cx + orbitX;
+            p.screenY = ey + orbitY + bob;
+            
+            dashedPaint.setAlpha((int)(p.entryScale * 37)); // 0.15 alpha
             canvas.drawLine(p.screenX, p.screenY, cx, ey, dashedPaint);
         }
 
         drawEarth(canvas, cx, ey, earthR);
 
-        // Hint text with smooth oscillation
-        float hintAlpha = 0.4f + 0.3f * (float) Math.sin(t * 2.5f);
+        // Polished Hint Text
+        float hintAlpha = 0.3f + 0.3f * (float) Math.sin(t * 2.5f);
         hintPaint.setAlpha((int)(Math.max(0, Math.min(1, hintAlpha)) * 255));
-        canvas.drawText("⊕  tap · world chat", cx, ey + earthR + earthR * 0.35f, hintPaint);
+        canvas.drawText("TAP THE EARTH TO BROADCAST", cx, ey + earthR * 1.65f, hintPaint);
 
-        // Peer bubbles
-        float pr = earthR * 0.27f;
+        // Peer Bubbles with entry animation and glow
+        float pr = earthR * 0.28f;
         for (Peer p : peers) {
+            if (p.entryScale < 1f) p.entryScale += 0.05f; // Simple smooth entry
+            
+            float scale = p.entryScale;
+            float currentPr = pr * scale;
+            
+            // Subtle glow under peer
+            RadialGradient glow = new RadialGradient(p.screenX, p.screenY, currentPr * 1.8f,
+                    new int[]{0x407070FF, 0x007070FF}, null, Shader.TileMode.CLAMP);
+            glowPaint.setShader(glow);
+            canvas.drawCircle(p.screenX, p.screenY, currentPr * 1.8f, glowPaint);
+
+            // Peer Bubble
             RadialGradient bg = new RadialGradient(
-                    p.screenX, p.screenY, pr,
-                    new int[]{ 0xFF2a2a70, 0xFF13132a }, null, Shader.TileMode.CLAMP);
+                    p.screenX, p.screenY, currentPr,
+                    new int[]{ 0xFF1E1E42, 0xFF0D0D1A }, null, Shader.TileMode.CLAMP);
             peerBgPaint.setShader(bg);
-            canvas.drawCircle(p.screenX, p.screenY, pr, peerBgPaint);
-            canvas.drawCircle(p.screenX, p.screenY, pr, peerBorderPaint);
-            canvas.drawText(String.valueOf(Character.toUpperCase(p.name.charAt(0))),
-                p.screenX, p.screenY + peerTextPaint.getTextSize() * 0.35f, peerTextPaint);
-            canvas.drawText(p.name, p.screenX, p.screenY + pr + peerLabelPaint.getTextSize() * 1.3f, peerLabelPaint);
+            canvas.drawCircle(p.screenX, p.screenY, currentPr, peerBgPaint);
+            canvas.drawCircle(p.screenX, p.screenY, currentPr, peerBorderPaint);
+            
+            if (p.name != null && p.name.length() > 0 && scale > 0.5f) {
+                peerTextPaint.setAlpha((int)(scale * 255));
+                peerLabelPaint.setAlpha((int)(scale * 255));
+                canvas.drawText(String.valueOf(Character.toUpperCase(p.name.charAt(0))),
+                    p.screenX, p.screenY + peerTextPaint.getTextSize() * 0.35f, peerTextPaint);
+                canvas.drawText(p.name.toLowerCase(), p.screenX, p.screenY + currentPr + peerLabelPaint.getTextSize() * 1.4f, peerLabelPaint);
+            }
         }
 
-        canvas.drawText(username, cx, earthR * 0.5f, usernamePaint);
+        canvas.drawText("@" + username.toLowerCase(), cx, 110, usernamePaint);
     }
 
     private void drawEarth(Canvas canvas, float cx, float cy, float r) {
-        RadialGradient ocean = new RadialGradient(
-                cx, cy, r,
-                new int[]{ 0xFF1a3a6a, 0xFF0d2040, 0xFF060f20 },
-                new float[]{ 0f, 0.5f, 1f }, Shader.TileMode.CLAMP);
+        // Outer Atmosphere glow
+        RadialGradient atmoGlow = new RadialGradient(cx, cy, r * 1.35f,
+                new int[]{0x253C78FF, 0x003C78FF}, null, Shader.TileMode.CLAMP);
+        atmoPaint.setShader(atmoGlow);
+        canvas.drawCircle(cx, cy, r * 1.35f, atmoPaint);
+
+        // Earth Body
+        RadialGradient ocean = new RadialGradient(cx - r*0.1f, cy - r*0.1f, r * 1.1f,
+                new int[]{ 0xFF1A3A6A, 0xFF060F20 }, new float[]{0.2f, 1f}, Shader.TileMode.CLAMP);
         oceanPaint.setShader(ocean);
         canvas.drawCircle(cx, cy, r, oceanPaint);
 
+        // Continents
         canvas.save();
         Path clip = new Path();
         clip.addCircle(cx, cy, r, Path.Direction.CW);
@@ -222,15 +243,9 @@ public class HubView extends View {
         }
         canvas.restore();
 
-        RadialGradient atmo = new RadialGradient(
-                cx, cy, r*1.12f,
-                new int[]{ 0x003C78FF, 0x1A3C78FF, 0x003C78FF }, null, Shader.TileMode.CLAMP);
-        atmoPaint.setShader(atmo);
-        canvas.drawCircle(cx, cy, r*1.12f, atmoPaint);
-
-        RadialGradient shine = new RadialGradient(
-                cx, cy, r,
-                new int[]{ 0x2D96C8FF, 0x00000000 }, null, Shader.TileMode.CLAMP);
+        // Inner Shine / Atmosphere Edge
+        RadialGradient shine = new RadialGradient(cx - r*0.2f, cy - r*0.3f, r * 0.9f,
+                new int[]{ 0x4096C8FF, 0x00000000 }, null, Shader.TileMode.CLAMP);
         shinePaint.setShader(shine);
         canvas.drawCircle(cx, cy, r, shinePaint);
     }
@@ -238,9 +253,9 @@ public class HubView extends View {
     public void sinkEarth(Runnable after) {
         afterSink = after;
         isSinking = true;
-        sinkAnim = ValueAnimator.ofFloat(earthY, H + 200);
-        sinkAnim.setDuration(500);
-        sinkAnim.setInterpolator(new AccelerateInterpolator());
+        sinkAnim = ValueAnimator.ofFloat(earthY, H + 300);
+        sinkAnim.setDuration(600);
+        sinkAnim.setInterpolator(new AccelerateInterpolator(1.5f));
         sinkAnim.addUpdateListener(a -> { earthY = (float) a.getAnimatedValue(); invalidate(); });
         sinkAnim.addListener(new AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(Animator animation) {
@@ -252,12 +267,11 @@ public class HubView extends View {
     }
 
     public void riseEarth() {
-        float target = cy * 0.85f;
-        earthY = H + 200;
+        float target = cy * 0.82f;
         isRising = true;
-        riseAnim = ValueAnimator.ofFloat(H + 200, target);
-        riseAnim.setDuration(700);
-        riseAnim.setInterpolator(new OvershootInterpolator(0.8f));
+        riseAnim = ValueAnimator.ofFloat(H + 300, target);
+        riseAnim.setDuration(900);
+        riseAnim.setInterpolator(new OvershootInterpolator(0.7f));
         riseAnim.addUpdateListener(a -> { earthY = (float) a.getAnimatedValue(); invalidate(); });
         riseAnim.addListener(new AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(Animator animation) { isRising = false; }
@@ -269,14 +283,16 @@ public class HubView extends View {
     public boolean onTouchEvent(MotionEvent e) {
         if (e.getAction() != MotionEvent.ACTION_UP) return true;
         float mx = e.getX(), my = e.getY();
-        float pr = earthR * 0.27f;
+        float pr = earthR * 0.35f; // Larger touch target
         for (Peer p : peers) {
-            if (Math.hypot(mx - p.screenX, my - p.screenY) < pr + 8) {
+            if (Math.hypot(mx - p.screenX, my - p.screenY) < pr + 10) {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
                 if (peerListener != null) peerListener.onPeerClicked(p.name);
                 return true;
             }
         }
-        if (Math.hypot(mx - cx, my - earthY) < earthR + 8) {
+        if (Math.hypot(mx - cx, my - earthY) < earthR + 20) {
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
             if (earthListener != null) earthListener.onEarthClicked();
         }
         return true;
@@ -293,15 +309,15 @@ public class HubView extends View {
     public void setPeers(Set<String> activeNames) {
         peers.clear();
         int i = 0;
-        float step = (float)(Math.PI * 2) / Math.max(1, activeNames.size());
+        int count = activeNames.size();
+        float step = (float)(Math.PI * 2) / Math.max(1, count);
         Random rnd = new Random();
         for (String name : activeNames) {
-            if (name.equals(username)) continue;
             Peer p = new Peer();
             p.name = name;
             p.angle = i * step;
-            p.dist = earthR * 1.5f;
-            p.bobPhase = rnd.nextFloat() * 5f;
+            p.bobPhase = rnd.nextFloat() * 10f;
+            p.entryScale = 0f; // Reset entry animation
             peers.add(p);
             i++;
         }

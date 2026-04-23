@@ -4,14 +4,23 @@
     <color name="input_bar_bg">#0a0a22</color>
     <color name="card_bg">#0a0a22</color>
     <color name="card_border">#1e1e42</color>
-    <color name="text_primary">#c8c8ff</color>
-    <color name="text_secondary">#6060a0</color>
-    <color name="accent">#5050c0</color>
-    <color name="accent_muted">#5050a0</color>
-    <color name="online_green">#40d080</color>
-    <color name="bubble_sent">#2a2a80</color>
+
+    <color name="text_primary">#E0E0FF</color>
+    <color name="text_secondary">#8080B0</color>
+
+    <color name="accent">#7070FF</color>
+    <color name="accent_muted">#4A4AE0</color>
+    <color name="accent_glow">#407070FF</color>
+
+    <color name="online_green">#40D080</color>
+    <color name="online_glow">#3040D080</color>
+
+    <color name="bubble_sent">#1e1e42</color>
     <color name="bubble_recv">#13132a</color>
     <color name="bubble_recv_border">#1e1e42</color>
-    <color name="send_btn">#3030a0</color>
+
+    <color name="button_gradient_start">#7070FF</color>
+    <color name="button_gradient_end">#4A4AE0</color>
+
     <color name="white">#FFFFFF</color>
 </resources>
