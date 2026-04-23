@@ -1,4 +1,4 @@
-package com.example.p2p;
+package com.example.Peerly;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;

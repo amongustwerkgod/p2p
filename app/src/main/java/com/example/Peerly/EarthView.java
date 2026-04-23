@@ -1,4 +1,4 @@
-package com.example.p2p;
+package com.example.Peerly;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
@@ -47,10 +47,9 @@ public class EarthView extends View {
         float cx = w / 2f, cy = h / 2f;
         float r  = Math.min(w, h) / 2f * 0.88f;
 
-        // Ocean gradient
+        // Ocean gradient - Fixed to use 6-argument constructor compatible with int[] and API 21+
         RadialGradient ocean = new RadialGradient(
-            cx - r*0.2f, cy - r*0.25f, r * 0.1f,
-            cx, cy, r,
+            cx - r*0.2f, cy - r*0.25f, r,
             new int[]{ 0xFF1a3a6a, 0xFF0d2040, 0xFF060f20 },
             new float[]{ 0f, 0.5f, 1f },
             Shader.TileMode.CLAMP);
@@ -75,17 +74,18 @@ public class EarthView extends View {
         }
         canvas.restore();
 
-        // Atmosphere ring
+        // Atmosphere ring - Fixed to use 6-argument constructor
         RadialGradient atmo = new RadialGradient(
-            cx, cy, r * 0.85f, cx, cy, r * 1.12f,
+            cx, cy, r * 1.12f,
             new int[]{ 0x003C78FF, 0x1A3C78FF, 0x003C78FF },
-            null, Shader.TileMode.CLAMP);
+            new float[]{ 0.85f/1.12f, (0.85f+1.12f)/(2*1.12f), 1f },
+            Shader.TileMode.CLAMP);
         atmoPaint.setShader(atmo);
         canvas.drawCircle(cx, cy, r * 1.12f, atmoPaint);
 
-        // Shine highlight
+        // Shine highlight - Fixed to use 6-argument constructor
         RadialGradient shine = new RadialGradient(
-            cx - r*0.25f, cy - r*0.30f, 2f, cx, cy, r,
+            cx - r*0.25f, cy - r*0.30f, r,
             new int[]{ 0x2D96C8FF, 0x00000000 },
             null, Shader.TileMode.CLAMP);
         shinePaint.setShader(shine);

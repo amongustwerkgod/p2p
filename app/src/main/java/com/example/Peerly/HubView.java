@@ -1,4 +1,4 @@
-package com.example.p2p;
+package com.example.Peerly;
 
 import android.animation.*;
 import android.content.Context;
@@ -30,7 +30,6 @@ public class HubView extends View {
     private float W, H, cx, cy;
     private float earthR  = 0;   // set in onSizeChanged
     private float earthY  = 0;   // animated offset from center
-    private float earthTargetY = 0;
 
     // Painting
     private Paint oceanPaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -59,7 +58,7 @@ public class HubView extends View {
     // Animation state
     private ValueAnimator frameAnim;
     private float earthRotation = 0f;
-    private float t = 0;
+    private float t = 0; // Time in seconds
 
     // Sink/rise
     private boolean isSinking = false;
@@ -108,7 +107,7 @@ public class HubView extends View {
         dashedPaint.setStrokeWidth(1f);
         dashedPaint.setPathEffect(new DashPathEffect(new float[]{8f, 12f}, 0));
 
-        hintPaint.setColor(0x80c8c8ff);
+        hintPaint.setColor(0xFFC8C8FF); // Base color, alpha set in onDraw
         hintPaint.setTextAlign(Paint.Align.CENTER);
         hintPaint.setTypeface(Typeface.MONOSPACE);
 
@@ -116,22 +115,15 @@ public class HubView extends View {
         usernamePaint.setTextAlign(Paint.Align.CENTER);
         usernamePaint.setTypeface(Typeface.MONOSPACE);
 
-        // Demo peers — replace with real Firebase presence list
-        String[] names = {"alice","bob","carol","dave"};
-        float[]  angles = {0.3f, 2.1f, 3.9f, 5.1f};
-        float[]  bobs   = {0f, 1.5f, 0.8f, 2.2f};
-        for (int i = 0; i < names.length; i++) {
-            Peer p = new Peer();
-            p.name = names[i]; p.angle = angles[i]; p.bobPhase = bobs[i];
-            peers.add(p);
-        }
-
-        frameAnim = ValueAnimator.ofFloat(0f, Float.MAX_VALUE);
-        frameAnim.setDuration(Long.MAX_VALUE);
+        // Use a 0..1 animator that repeats to drive a smooth, continuous time 't'
+        frameAnim = ValueAnimator.ofFloat(0f, 1f);
+        frameAnim.setDuration(1000);
+        frameAnim.setRepeatCount(ValueAnimator.INFINITE);
         frameAnim.setInterpolator(new LinearInterpolator());
         frameAnim.addUpdateListener(a -> {
-            t = (float) a.getAnimatedValue();
-            earthRotation += 0.003f;
+            // Using currentPlayTime / 1000.0 gives us a stable 't' in seconds
+            t = a.getCurrentPlayTime() / 1000f;
+            earthRotation = t * 0.2f; // Smooth rotation based on time
             invalidate();
         });
     }
@@ -140,8 +132,8 @@ public class HubView extends View {
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         W = w; H = h; cx = W/2f; cy = H/2f;
         earthR = Math.min(W, H) * 0.23f;
-        earthY = cy * 0.85f;
-        // scatter stars
+        if (!isSinking && !isRising) earthY = cy * 0.85f;
+
         stars.clear();
         Random rnd = new Random(42);
         for (int i = 0; i < 200; i++) {
@@ -150,16 +142,17 @@ public class HubView extends View {
             s.y = rnd.nextFloat() * H;
             s.r = rnd.nextFloat() * 1.5f + 0.3f;
             s.phase = rnd.nextFloat() * (float)(Math.PI * 2);
-            s.speed = rnd.nextFloat() * 0.02f + 0.005f;
+            s.speed = rnd.nextFloat() * 2.0f + 0.5f; // adjusted for seconds
             stars.add(s);
         }
-        // set peer orbit distance
-        for (Peer p : peers) p.dist = earthR * 1.5f;
+
         peerTextPaint.setTextSize(earthR * 0.35f);
         peerLabelPaint.setTextSize(earthR * 0.20f);
         hintPaint.setTextSize(earthR * 0.18f);
         usernamePaint.setTextSize(earthR * 0.18f);
         starPaint.setColor(0xFFb4b4ff);
+        
+        for (Peer p : peers) p.dist = earthR * 1.5f;
     }
 
     @Override
@@ -168,36 +161,34 @@ public class HubView extends View {
 
         // Stars
         for (Star s : stars) {
-            float a = 0.2f + 0.5f * (float) Math.sin(s.phase + t * s.speed);
-            starPaint.setAlpha((int)(a * 255));
+            float a = 0.25f + 0.45f * (float) Math.sin(s.phase + t * s.speed);
+            starPaint.setAlpha((int)(Math.max(0, Math.min(1, a)) * 255));
             canvas.drawCircle(s.x, s.y, s.r, starPaint);
         }
 
-        float ey = earthY;  // this is the absolute Y on screen
+        float ey = earthY;
 
-        // Dashed peer lines
+        // Dashed lines
         for (Peer p : peers) {
-            float bob = 10f * (float) Math.sin(t * 0.04f + p.bobPhase);
+            float bob = 12f * (float) Math.sin(t * 3.0f + p.bobPhase);
             p.screenX = cx + (float)Math.cos(p.angle) * p.dist;
             p.screenY = ey - earthR * 0.1f + (float)Math.sin(p.angle) * p.dist * 0.4f + bob;
             canvas.drawLine(p.screenX, p.screenY, cx, ey, dashedPaint);
         }
 
-        // Earth
         drawEarth(canvas, cx, ey, earthR);
 
-        // Earth tap hint
-        float hintAlpha = 0.3f + 0.2f * (float) Math.sin(t * 0.05f);
-        hintPaint.setAlpha((int)(hintAlpha * 255));
+        // Hint text with smooth oscillation
+        float hintAlpha = 0.4f + 0.3f * (float) Math.sin(t * 2.5f);
+        hintPaint.setAlpha((int)(Math.max(0, Math.min(1, hintAlpha)) * 255));
         canvas.drawText("⊕  tap · world chat", cx, ey + earthR + earthR * 0.35f, hintPaint);
 
         // Peer bubbles
         float pr = earthR * 0.27f;
         for (Peer p : peers) {
             RadialGradient bg = new RadialGradient(
-                p.screenX - 4, p.screenY - 4, 4,
-                p.screenX, p.screenY, pr,
-                new int[]{ 0xFF2a2a70, 0xFF13132a }, null, Shader.TileMode.CLAMP);
+                    p.screenX, p.screenY, pr,
+                    new int[]{ 0xFF2a2a70, 0xFF13132a }, null, Shader.TileMode.CLAMP);
             peerBgPaint.setShader(bg);
             canvas.drawCircle(p.screenX, p.screenY, pr, peerBgPaint);
             canvas.drawCircle(p.screenX, p.screenY, pr, peerBorderPaint);
@@ -206,15 +197,14 @@ public class HubView extends View {
             canvas.drawText(p.name, p.screenX, p.screenY + pr + peerLabelPaint.getTextSize() * 1.3f, peerLabelPaint);
         }
 
-        // Username label top
         canvas.drawText(username, cx, earthR * 0.5f, usernamePaint);
     }
 
     private void drawEarth(Canvas canvas, float cx, float cy, float r) {
         RadialGradient ocean = new RadialGradient(
-            cx - r*0.2f, cy - r*0.25f, r * 0.1f, cx, cy, r,
-            new int[]{ 0xFF1a3a6a, 0xFF0d2040, 0xFF060f20 },
-            new float[]{ 0f, 0.5f, 1f }, Shader.TileMode.CLAMP);
+                cx, cy, r,
+                new int[]{ 0xFF1a3a6a, 0xFF0d2040, 0xFF060f20 },
+                new float[]{ 0f, 0.5f, 1f }, Shader.TileMode.CLAMP);
         oceanPaint.setShader(ocean);
         canvas.drawCircle(cx, cy, r, oceanPaint);
 
@@ -232,18 +222,19 @@ public class HubView extends View {
         }
         canvas.restore();
 
-        RadialGradient atmo = new RadialGradient(cx, cy, r*0.85f, cx, cy, r*1.12f,
-            new int[]{ 0x003C78FF, 0x1A3C78FF, 0x003C78FF }, null, Shader.TileMode.CLAMP);
+        RadialGradient atmo = new RadialGradient(
+                cx, cy, r*1.12f,
+                new int[]{ 0x003C78FF, 0x1A3C78FF, 0x003C78FF }, null, Shader.TileMode.CLAMP);
         atmoPaint.setShader(atmo);
         canvas.drawCircle(cx, cy, r*1.12f, atmoPaint);
 
-        RadialGradient shine = new RadialGradient(cx-r*0.25f, cy-r*0.30f, 2f, cx, cy, r,
-            new int[]{ 0x2D96C8FF, 0x00000000 }, null, Shader.TileMode.CLAMP);
+        RadialGradient shine = new RadialGradient(
+                cx, cy, r,
+                new int[]{ 0x2D96C8FF, 0x00000000 }, null, Shader.TileMode.CLAMP);
         shinePaint.setShader(shine);
         canvas.drawCircle(cx, cy, r, shinePaint);
     }
 
-    // Sink earth below screen, call afterSink when done
     public void sinkEarth(Runnable after) {
         afterSink = after;
         isSinking = true;
@@ -260,14 +251,17 @@ public class HubView extends View {
         sinkAnim.start();
     }
 
-    // Rise earth from below back to center
     public void riseEarth() {
         float target = cy * 0.85f;
         earthY = H + 200;
+        isRising = true;
         riseAnim = ValueAnimator.ofFloat(H + 200, target);
         riseAnim.setDuration(700);
         riseAnim.setInterpolator(new OvershootInterpolator(0.8f));
         riseAnim.addUpdateListener(a -> { earthY = (float) a.getAnimatedValue(); invalidate(); });
+        riseAnim.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator animation) { isRising = false; }
+        });
         riseAnim.start();
     }
 
@@ -276,14 +270,12 @@ public class HubView extends View {
         if (e.getAction() != MotionEvent.ACTION_UP) return true;
         float mx = e.getX(), my = e.getY();
         float pr = earthR * 0.27f;
-        // Check peers first
         for (Peer p : peers) {
             if (Math.hypot(mx - p.screenX, my - p.screenY) < pr + 8) {
                 if (peerListener != null) peerListener.onPeerClicked(p.name);
                 return true;
             }
         }
-        // Check earth
         if (Math.hypot(mx - cx, my - earthY) < earthR + 8) {
             if (earthListener != null) earthListener.onEarthClicked();
         }
@@ -298,18 +290,20 @@ public class HubView extends View {
     @Override
     protected void onDetachedFromWindow() { super.onDetachedFromWindow(); frameAnim.cancel(); }
 
-    // Call this to update the peer list from Firebase presence
-    public void setPeers(List<String> peerNames) {
+    public void setPeers(Set<String> activeNames) {
         peers.clear();
+        int i = 0;
+        float step = (float)(Math.PI * 2) / Math.max(1, activeNames.size());
         Random rnd = new Random();
-        float angleStep = (float)(Math.PI * 2) / Math.max(1, peerNames.size());
-        for (int i = 0; i < peerNames.size(); i++) {
+        for (String name : activeNames) {
+            if (name.equals(username)) continue;
             Peer p = new Peer();
-            p.name = peerNames.get(i);
-            p.angle = angleStep * i + rnd.nextFloat() * 0.3f;
-            p.dist  = earthR * (1.4f + rnd.nextFloat() * 0.2f);
-            p.bobPhase = rnd.nextFloat() * (float)(Math.PI * 2);
+            p.name = name;
+            p.angle = i * step;
+            p.dist = earthR * 1.5f;
+            p.bobPhase = rnd.nextFloat() * 5f;
             peers.add(p);
+            i++;
         }
         invalidate();
     }

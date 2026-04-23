@@ -1,4 +1,4 @@
-package com.example.p2p;
+package com.example.Peerly;
 
 import android.os.Bundle;
 import android.text.Editable;
@@ -10,6 +10,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.webrtc.DataChannel;
+
+import java.nio.charset.StandardCharsets;
+
 public class ChatActivity extends AppCompatActivity {
 
     private MessageAdapter adapter;
@@ -18,6 +22,9 @@ public class ChatActivity extends AppCompatActivity {
     private ImageButton sendButton;
     private String peerName;
     private String username;
+    private String roomId;
+    private boolean isCaller;
+    private WebRtcManager webRtcManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,7 +36,11 @@ public class ChatActivity extends AppCompatActivity {
 
         username = getIntent().getStringExtra("username");
         peerName = getIntent().getStringExtra("peerName");
+        roomId = getIntent().getStringExtra("roomId");
+        isCaller = getIntent().getBooleanExtra("isCaller", false);
+
         if (peerName == null) peerName = "peer";
+        if (roomId == null) roomId = "default-room";
 
         // Header
         TextView peerNameLabel = findViewById(R.id.peerNameLabel);
@@ -57,7 +68,7 @@ public class ChatActivity extends AppCompatActivity {
         messageInput.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}
             @Override public void onTextChanged(CharSequence s,int st,int b,int c){
-                sendButton.setEnabled(s.toString().trim().length() > 0);
+                sendButton.setEnabled(!s.toString().trim().isEmpty());
             }
             @Override public void afterTextChanged(Editable s){}
         });
@@ -76,25 +87,49 @@ public class ChatActivity extends AppCompatActivity {
 
         sendButton.setOnClickListener(v -> sendMessage());
 
-        // Hook up your WebRTC message receiver here, e.g.:
-        // webRtcManager.setOnMessageListener(msg -> {
-        //     runOnUiThread(() -> adapter.addMessage(new Message(peerName, msg, false)));
-        //     scrollToBottom();
-        // });
+        // Initialize WebRTC
+        webRtcManager = new WebRtcManager(this, roomId, isCaller, new WebRtcManager.MessageListener() {
+            @Override
+            public void onMessageReceived(String message) {
+                runOnUiThread(() -> {
+                    adapter.addMessage(new Message(peerName, message, false));
+                    scrollToBottom();
+                });
+            }
+
+            @Override
+            public void onStatusChanged(String status) {
+                runOnUiThread(() -> {
+                    Toast.makeText(ChatActivity.this, status, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 
     private void sendMessage() {
         String text = messageInput.getText().toString().trim();
         if (text.isEmpty()) return;
+        
         adapter.addMessage(new Message(username, text, true));
         scrollToBottom();
         messageInput.setText("");
-        // Send via your WebRTC data channel:
-        // webRtcManager.sendMessage(text);
+        
+        // Send via WebRTC
+        if (webRtcManager != null) {
+            webRtcManager.sendMessage(text);
+        }
     }
 
     private void scrollToBottom() {
         recyclerView.post(() ->
             recyclerView.smoothScrollToPosition(adapter.getItemCount() - 1));
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (webRtcManager != null) {
+            webRtcManager.onDestroy();
+        }
     }
 }

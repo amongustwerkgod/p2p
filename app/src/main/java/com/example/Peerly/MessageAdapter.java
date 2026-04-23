@@ -1,7 +1,4 @@
-
-
-// ─── MessageAdapter.java ────────────────────────────────────────────────────
-package com.example.p2p;
+package com.example.Peerly;
 
 import android.view.*;
 import android.widget.TextView;
@@ -12,15 +9,38 @@ import java.util.List;
 
 public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
 
+    public interface OnMessageLongClickListener {
+        void onMessageLongClick(Message message, int position);
+    }
+
     private static final int TYPE_SENT = 0, TYPE_RECV = 1;
     private final List<Message> messages = new ArrayList<>();
     private final String myUsername;
+    private OnMessageLongClickListener longClickListener;
 
     public MessageAdapter(String myUsername) { this.myUsername = myUsername; }
+
+    public void setOnMessageLongClickListener(OnMessageLongClickListener listener) {
+        this.longClickListener = listener;
+    }
 
     public void addMessage(Message m) {
         messages.add(m);
         notifyItemInserted(messages.size() - 1);
+    }
+
+    public void removeMessage(int position) {
+        if (position >= 0 && position < messages.size()) {
+            messages.remove(position);
+            notifyItemRemoved(position);
+        }
+    }
+
+    public int getPositionOfMessage(String key) {
+        for (int i = 0; i < messages.size(); i++) {
+            if (key.equals(messages.get(i).key)) return i;
+        }
+        return -1;
     }
 
     @Override public int getItemViewType(int pos) {
@@ -43,6 +63,15 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
         Message m = messages.get(pos);
         h.text.setText(m.text);
         if (h.sender != null) h.sender.setText(m.sender);
+        
+        h.itemView.setOnLongClickListener(v -> {
+            if (longClickListener != null) {
+                longClickListener.onMessageLongClick(m, h.getAdapterPosition());
+                return true;
+            }
+            return false;
+        });
+
         // Entrance animation
         h.itemView.setAlpha(0f);
         h.itemView.setScaleX(0.85f);

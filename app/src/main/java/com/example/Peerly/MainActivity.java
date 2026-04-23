@@ -1,26 +1,20 @@
-package com.example.p2p;
+package com.example.Peerly;
 
-import android.animation.*;
 import android.content.Intent;
-import android.graphics.*;
 import android.os.Bundle;
-import android.view.*;
-import android.view.animation.*;
-import android.widget.*;
+import android.view.WindowManager;
 import androidx.appcompat.app.AppCompatActivity;
-import java.util.*;
+import com.google.firebase.database.*;
+import java.util.HashSet;
+import java.util.Set;
 
-/**
- * Hub screen.
- *  - Full-screen custom HubView draws Earth + orbiting peer bubbles on Canvas.
- *  - Tap Earth → Earth sinks below screen → WorldChatActivity slides up.
- *  - Tap peer bubble → ChatActivity for that peer.
- *  - When returning from world/peer chat the Earth rises back up.
- */
 public class MainActivity extends AppCompatActivity {
 
     private HubView hubView;
-    private String  username;
+    private String username;
+    private DatabaseReference presenceRef;
+    private DatabaseReference myPresenceRef;
+    private ValueEventListener presenceListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,8 +29,17 @@ public class MainActivity extends AppCompatActivity {
         hubView = new HubView(this, username);
         setContentView(hubView);
 
+        // Firebase Presence Setup
+        presenceRef = FirebaseDatabase.getInstance().getReference("presence");
+        myPresenceRef = presenceRef.child(username);
+
+        // Set self as online and handle disconnect
+        myPresenceRef.child("online").setValue(true);
+        myPresenceRef.child("online").onDisconnect().setValue(false);
+
+        setupPresenceListener();
+
         hubView.setOnEarthClickedListener(() -> {
-            // Earth sinks, then open world chat
             hubView.sinkEarth(() -> {
                 Intent i = new Intent(MainActivity.this, WorldChatActivity.class);
                 i.putExtra("username", username);
@@ -46,24 +49,51 @@ public class MainActivity extends AppCompatActivity {
         });
 
         hubView.setOnPeerClickedListener(peerName -> {
+            // In a real app, you'd generate a unique roomId between you and the peer.
+            // For this demo, we'll use a deterministic room ID based on names.
+            String roomId = getRoomId(username, peerName);
             Intent i = new Intent(this, ChatActivity.class);
             i.putExtra("username", username);
             i.putExtra("peerName", peerName);
+            i.putExtra("roomId", roomId);
+            i.putExtra("isCaller", username.compareTo(peerName) < 0);
             startActivityForResult(i, 2);
             overridePendingTransition(R.anim.slide_in_up, android.R.anim.fade_out);
         });
     }
 
+    private void setupPresenceListener() {
+        presenceListener = presenceRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                Set<String> activePeers = new HashSet<>();
+                for (DataSnapshot child : snapshot.getChildren()) {
+                    Boolean online = child.child("online").getValue(Boolean.class);
+                    String name = child.getKey();
+                    if (Boolean.TRUE.equals(online) && name != null && !name.equals(username)) {
+                        activePeers.add(name);
+                    }
+                }
+                hubView.setPeers(activePeers);
+            }
+            @Override public void onCancelled(DatabaseError error) {}
+        });
+    }
+
+    private String getRoomId(String u1, String u2) {
+        return u1.compareTo(u2) < 0 ? u1 + "_" + u2 : u2 + "_" + u1;
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        // Earth rises back when returning from any sub-screen
         hubView.riseEarth();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        myPresenceRef.child("online").setValue(true);
         hubView.resumeAnimations();
     }
 
@@ -71,5 +101,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         hubView.pauseAnimations();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (presenceListener != null) presenceRef.removeEventListener(presenceListener);
+        myPresenceRef.child("online").setValue(false);
     }
 }
