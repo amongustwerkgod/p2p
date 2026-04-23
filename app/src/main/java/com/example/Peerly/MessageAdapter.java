@@ -1,9 +1,12 @@
 package com.example.Peerly;
 
 import android.view.*;
+import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,7 +48,6 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     }
 
     @Override public int getItemViewType(int pos) {
-        // Updated to use the isSent boolean directly from the Message object
         return messages.get(pos).isSent ? TYPE_SENT : TYPE_RECV;
     }
 
@@ -63,7 +65,21 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     @Override
     public void onBindViewHolder(@NonNull MsgVH h, int pos) {
         Message m = messages.get(pos);
-        h.text.setText(m.text);
+        
+        if (m.type == Message.Type.IMAGE) {
+            h.text.setVisibility(View.GONE);
+            h.imageCard.setVisibility(View.VISIBLE);
+            Glide.with(h.itemView.getContext())
+                .load(m.imageUrl)
+                .transition(DrawableTransitionOptions.withCrossFade())
+                .placeholder(R.drawable.bg_bubble_recv)
+                .into(h.image);
+        } else {
+            h.text.setVisibility(View.VISIBLE);
+            h.imageCard.setVisibility(View.GONE);
+            h.text.setText(m.text);
+        }
+
         if (h.sender != null) h.sender.setText(m.sender);
         
         h.itemView.setOnLongClickListener(v -> {
@@ -76,18 +92,23 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
 
         // Entrance animation
         h.itemView.setAlpha(0f);
-        h.itemView.setScaleX(0.85f);
-        h.itemView.setScaleY(0.85f);
+        h.itemView.setScaleX(0.9f);
+        h.itemView.setScaleY(0.9f);
         h.itemView.animate().alpha(1f).scaleX(1f).scaleY(1f)
-            .setDuration(220).setStartDelay(0).start();
+            .setDuration(200).start();
     }
 
     static class MsgVH extends RecyclerView.ViewHolder {
         TextView text, sender;
+        ImageView image;
+        View imageCard;
+
         MsgVH(View v) {
             super(v);
             text   = v.findViewById(R.id.msgText);
-            sender = v.findViewById(R.id.msgSender); // null in sent layout
+            sender = v.findViewById(R.id.msgSender);
+            image  = v.findViewById(R.id.msgImage);
+            imageCard = v.findViewById(R.id.msgImageCard);
         }
     }
 }

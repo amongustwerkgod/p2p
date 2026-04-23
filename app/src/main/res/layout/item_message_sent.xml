@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="end"
     android:paddingStart="64dp"
     android:paddingEnd="12dp"
     android:paddingTop="2dp"
@@ -12,7 +15,6 @@
         android:id="@+id/msgText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="end"
         android:background="@drawable/bg_bubble_sent"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
@@ -22,6 +24,27 @@
         android:textSize="15sp"
         android:fontFamily="sans-serif"
         android:lineSpacingExtra="2dp"
-        android:elevation="2dp" />
+        android:elevation="2dp"
+        android:visibility="gone" />
 
-</FrameLayout>
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/msgImageCard"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="2dp"
+        app:strokeWidth="0dp">
+
+        <ImageView
+            android:id="@+id/msgImage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true"
+            android:scaleType="centerCrop"
+            android:minHeight="100dp"
+            android:contentDescription="Sent image" />
+
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

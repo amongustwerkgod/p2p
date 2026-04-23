@@ -1,20 +1,34 @@
 package com.example.Peerly;
 
 public class Message {
+    public enum Type { TEXT, IMAGE }
+
     public String key;
     public final String sender;
     public final String text;
-    public final boolean isSent;  // true = right bubble, false = left bubble
+    public final String imageUrl;
+    public final Type type;
+    public final boolean isSent;
     public final long timestamp;
 
     public Message(String sender, String text, boolean isSent) {
-        this(null, sender, text, isSent);
+        this(null, sender, text, null, Type.TEXT, isSent);
     }
 
     public Message(String key, String sender, String text, boolean isSent) {
+        this(key, sender, text, null, Type.TEXT, isSent);
+    }
+
+    public Message(String sender, String imageUrl, Type type, boolean isSent) {
+        this(null, sender, null, imageUrl, type, isSent);
+    }
+
+    public Message(String key, String sender, String text, String imageUrl, Type type, boolean isSent) {
         this.key       = key;
         this.sender    = sender;
         this.text      = text;
+        this.imageUrl  = imageUrl;
+        this.type      = type;
         this.isSent    = isSent;
         this.timestamp = System.currentTimeMillis();
     }
