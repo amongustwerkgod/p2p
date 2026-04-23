@@ -5,8 +5,8 @@
     android:layout_height="wrap_content"
     android:paddingStart="64dp"
     android:paddingEnd="12dp"
-    android:paddingTop="3dp"
-    android:paddingBottom="3dp">
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
 
     <TextView
         android:id="@+id/msgText"
@@ -14,13 +14,14 @@
         android:layout_height="wrap_content"
         android:layout_gravity="end"
         android:background="@drawable/bg_bubble_sent"
-        android:paddingStart="14dp"
-        android:paddingEnd="14dp"
-        android:paddingTop="9dp"
-        android:paddingBottom="9dp"
-        android:textColor="@color/text_primary"
-        android:textSize="14sp"
-        android:fontFamily="monospace"
-        android:lineSpacingMultiplier="1.4" />
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:textColor="@color/white"
+        android:textSize="15sp"
+        android:fontFamily="sans-serif"
+        android:lineSpacingExtra="2dp"
+        android:elevation="2dp" />
 
 </FrameLayout>
