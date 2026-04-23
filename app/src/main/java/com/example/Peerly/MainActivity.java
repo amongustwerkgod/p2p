@@ -1,172 +1,112 @@
 package com.example.Peerly;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.view.View;
-import android.widget.*;
+import android.view.WindowManager;
 import androidx.appcompat.app.AppCompatActivity;
-import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.database.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String PREFS = "peerly_prefs";
-    private static final String KEY_USERNAME = "username";
-
+    private HubView hubView;
     private String username;
     private DatabaseReference presenceRef;
+    private DatabaseReference myPresenceRef;
+    private ValueEventListener presenceListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
 
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        username = prefs.getString(KEY_USERNAME, null);
+        username = getIntent().getStringExtra("username");
+        if (username == null) username = "anon";
 
-        if (username == null || username.isEmpty()) {
-            showUsernameDialog();
-        } else {
-            launchMain();
-        }
+        hubView = new HubView(this, username);
+        setContentView(hubView);
+
+        // Firebase Presence Setup
+        presenceRef = FirebaseDatabase.getInstance().getReference("presence");
+        myPresenceRef = presenceRef.child(username);
+
+        // Set self as online and handle disconnect
+        myPresenceRef.child("online").setValue(true);
+        myPresenceRef.child("online").onDisconnect().setValue(false);
+
+        setupPresenceListener();
+
+        hubView.setOnEarthClickedListener(() -> {
+            hubView.sinkEarth(() -> {
+                Intent i = new Intent(MainActivity.this, WorldChatActivity.class);
+                i.putExtra("username", username);
+                startActivityForResult(i, 1);
+                overridePendingTransition(R.anim.slide_in_up, android.R.anim.fade_out);
+            });
+        });
+
+        hubView.setOnPeerClickedListener(peerName -> {
+            // In a real app, you'd generate a unique roomId between you and the peer.
+            // For this demo, we'll use a deterministic room ID based on names.
+            String roomId = getRoomId(username, peerName);
+            Intent i = new Intent(this, ChatActivity.class);
+            i.putExtra("username", username);
+            i.putExtra("peerName", peerName);
+            i.putExtra("roomId", roomId);
+            i.putExtra("isCaller", username.compareTo(peerName) < 0);
+            startActivityForResult(i, 2);
+            overridePendingTransition(R.anim.slide_in_up, android.R.anim.fade_out);
+        });
     }
 
-    private void showUsernameDialog() {
-        setContentView(R.layout.activity_username);
-
-        EditText usernameInput = findViewById(R.id.usernameInput);
-        Button confirmBtn = findViewById(R.id.confirmUsernameBtn);
-        ListView existingList = findViewById(R.id.existingUsersList);
-
-        // Load existing online users for quick-pick
-        DatabaseReference usersRef = FirebaseDatabase.getInstance()
-                .getReference("presence");
-
-        usersRef.addListenerForSingleValueEvent(new ValueEventListener() {
+    private void setupPresenceListener() {
+        presenceListener = presenceRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
-                java.util.List<String> names = new java.util.ArrayList<>();
+                Set<String> activePeers = new HashSet<>();
                 for (DataSnapshot child : snapshot.getChildren()) {
                     Boolean online = child.child("online").getValue(Boolean.class);
-                    if (Boolean.TRUE.equals(online)) {
-                        names.add(child.getKey());
+                    String name = child.getKey();
+                    if (Boolean.TRUE.equals(online) && name != null && !name.equals(username)) {
+                        activePeers.add(name);
                     }
                 }
-                if (!names.isEmpty()) {
-                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                            MainActivity.this,
-                            android.R.layout.simple_list_item_1,
-                            names);
-                    existingList.setAdapter(adapter);
-                    existingList.setOnItemClickListener((parent, view, pos, id) ->
-                            usernameInput.setText(names.get(pos)));
-                }
+                hubView.setPeers(activePeers);
             }
-
-            @Override
-            public void onCancelled(DatabaseError error) {}
-        });
-
-        confirmBtn.setOnClickListener(v -> {
-            String name = usernameInput.getText().toString().trim();
-            if (name.isEmpty()) {
-                usernameInput.setError("Enter a username");
-                return;
-            }
-            // Sanitize: only alphanumeric + underscore
-            if (!name.matches("[a-zA-Z0-9_]{2,20}")) {
-                usernameInput.setError("2–20 chars, letters/numbers/underscore only");
-                return;
-            }
-            saveUsernameAndLaunch(name);
+            @Override public void onCancelled(DatabaseError error) {}
         });
     }
 
-    private void saveUsernameAndLaunch(String name) {
-        username = name;
-        getSharedPreferences(PREFS, MODE_PRIVATE)
-                .edit()
-                .putString(KEY_USERNAME, username)
-                .apply();
-        launchMain();
+    private String getRoomId(String u1, String u2) {
+        return u1.compareTo(u2) < 0 ? u1 + "_" + u2 : u2 + "_" + u1;
     }
 
-    private void launchMain() {
-        setContentView(R.layout.activity_main);
-
-        TextView userLabel = findViewById(R.id.userLabel);
-        userLabel.setText("@" + username);
-
-        // Register presence
-        registerPresence();
-
-        TabLayout tabs = findViewById(R.id.tabs);
-        FrameLayout container = findViewById(R.id.fragmentContainer);
-
-        // Load nearby chat by default
-        switchToFragment(new NearbyChatFragment(), container);
-
-        tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                if (tab.getPosition() == 0) {
-                    switchToFragment(new NearbyChatFragment(), container);
-                } else {
-                    switchToFragment(new PrivateRoomsFragment(), container);
-                }
-            }
-
-            @Override public void onTabUnselected(TabLayout.Tab tab) {}
-            @Override public void onTabReselected(TabLayout.Tab tab) {}
-        });
-
-        // Change username button
-        TextView changeUser = findViewById(R.id.changeUsername);
-        changeUser.setOnClickListener(v -> {
-            // Go offline, clear prefs, restart
-            if (presenceRef != null) presenceRef.child("online").setValue(false);
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(KEY_USERNAME).apply();
-            username = null;
-            showUsernameDialog();
-        });
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        hubView.riseEarth();
     }
 
-    private void registerPresence() {
-        presenceRef = FirebaseDatabase.getInstance()
-                .getReference("presence")
-                .child(username);
-
-        Map<String, Object> presenceData = new HashMap<>();
-        presenceData.put("online", true);
-        presenceData.put("ts", ServerValue.TIMESTAMP);
-        presenceRef.setValue(presenceData);
-
-        // Auto-remove on disconnect
-        presenceRef.child("online").onDisconnect().setValue(false);
+    @Override
+    protected void onResume() {
+        super.onResume();
+        myPresenceRef.child("online").setValue(true);
+        hubView.resumeAnimations();
     }
 
-    private void switchToFragment(androidx.fragment.app.Fragment fragment, FrameLayout container) {
-        Bundle args = new Bundle();
-        args.putString("username", username);
-        fragment.setArguments(args);
-
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.fragmentContainer, fragment)
-                .commit();
+    @Override
+    protected void onPause() {
+        super.onPause();
+        hubView.pauseAnimations();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (presenceRef != null) {
-            presenceRef.child("online").setValue(false);
-        }
-    }
-
-    public String getUsername() {
-        return username;
+        if (presenceListener != null) presenceRef.removeEventListener(presenceListener);
+        myPresenceRef.child("online").setValue(false);
     }
 }

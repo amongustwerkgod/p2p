@@ -1,1 +1,27 @@
+# Firebase
+app/google-services.json
+
+# Local config
+local.properties
+
+# Build folders
 /build
+/app/build
+
+# Gradle
+.gradle/
+
+# Keystore files (VERY important)
+*.keystore
+*.jks
+
+# Logs
+*.log
+
+# Android Studio files
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
