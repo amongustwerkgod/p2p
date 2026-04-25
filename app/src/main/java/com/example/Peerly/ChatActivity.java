@@ -21,6 +21,8 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -72,10 +74,21 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        
+        // Remove FLAG_LAYOUT_NO_LIMITS to allow system to resize layout for keyboard
+        // getWindow().setFlags(
+        //    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        //    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        
         setContentView(R.layout.activity_chat);
+
+        // Set up WindowInsets to handle the keyboard properly while keeping the "seamless" look
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
+            int systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
+            int ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+            v.setPadding(0, 0, 0, Math.max(systemBars, ime));
+            return insets;
+        });
 
         username = getIntent().getStringExtra("username");
         peerName = getIntent().getStringExtra("peerName"); 
@@ -116,6 +129,17 @@ public class ChatActivity extends AppCompatActivity {
         llm.setStackFromEnd(true);
         recyclerView.setLayoutManager(llm);
         recyclerView.setAdapter(adapter);
+
+        // Auto-scroll when keyboard appears
+        recyclerView.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (bottom < oldBottom) {
+                recyclerView.postDelayed(() -> {
+                    if (adapter.getItemCount() > 0) {
+                        recyclerView.smoothScrollToPosition(adapter.getItemCount() - 1);
+                    }
+                }, 100);
+            }
+        });
 
         // Input
         messageInput = findViewById(R.id.messageInput);
