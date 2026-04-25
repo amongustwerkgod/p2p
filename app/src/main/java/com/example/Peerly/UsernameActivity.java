@@ -1,11 +1,15 @@
 package com.example.Peerly;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.*;
@@ -13,56 +17,72 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class UsernameActivity extends AppCompatActivity {
 
+    private EarthView earthView;
+    private View loginCard;
+    private EditText input;
+    private Button joinBtn;
+    private boolean isJoining = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Full-screen immersive
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
         setContentView(R.layout.activity_username);
 
-        EarthView earthView  = findViewById(R.id.earthView);
-        View      loginCard  = findViewById(R.id.loginCard);
-        EditText  input      = findViewById(R.id.usernameInput);
-        Button    joinBtn    = findViewById(R.id.joinButton);
+        earthView  = findViewById(R.id.earthView);
+        loginCard  = findViewById(R.id.loginCard);
+        input      = findViewById(R.id.usernameInput);
+        joinBtn    = findViewById(R.id.joinButton);
 
-        // Earth starts below screen, rises with overshoot
-        earthView.setTranslationY(900f);
-        ObjectAnimator earthRise = ObjectAnimator.ofFloat(earthView, "translationY", 900f, 0f);
-        earthRise.setDuration(900);
-        earthRise.setInterpolator(new OvershootInterpolator(0.8f));
-
-        // Card fades in after earth settles
+        // Start as a distant star
+        earthView.setZoomFactor(0.02f);
+        
+        // Initial fade in for the card
         loginCard.setAlpha(0f);
-        loginCard.setVisibility(View.VISIBLE);
-        ObjectAnimator cardFade = ObjectAnimator.ofFloat(loginCard, "alpha", 0f, 1f);
-        cardFade.setDuration(500);
-        cardFade.setStartDelay(700);
+        loginCard.animate().alpha(1f).setDuration(1000).setStartDelay(500).start();
 
-        AnimatorSet set = new AnimatorSet();
-        set.playTogether(earthRise, cardFade);
-        set.start();
-
-        // Enter key on keyboard triggers join
         input.setOnEditorActionListener((v, actionId, event) -> {
-            tryJoin(input);
+            tryJoin();
             return true;
         });
 
-        joinBtn.setOnClickListener(v -> tryJoin(input));
+        joinBtn.setOnClickListener(v -> tryJoin());
     }
 
-    private void tryJoin(EditText input) {
+    private void tryJoin() {
+        if (isJoining) return;
+        
         String name = input.getText().toString().trim();
         if (name.isEmpty()) {
             input.setError("pick a callsign");
             return;
         }
-        Intent i = new Intent(this, MainActivity.class);
-        i.putExtra("username", name);
-        startActivity(i);
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-        finish();
+        
+        isJoining = true;
+        
+        // Professional transition: Earth zooms in as card fades out
+        loginCard.animate().alpha(0f).setDuration(400).start();
+        
+        ValueAnimator zoomAnim = ValueAnimator.ofFloat(0.02f, 1.0f);
+        zoomAnim.setDuration(1200);
+        zoomAnim.setInterpolator(new AccelerateDecelerateInterpolator());
+        zoomAnim.addUpdateListener(animation -> {
+            earthView.setZoomFactor((float) animation.getAnimatedValue());
+        });
+        
+        zoomAnim.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                Intent i = new Intent(UsernameActivity.this, MainActivity.class);
+                i.putExtra("username", name);
+                startActivity(i);
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+                finish();
+            }
+        });
+        
+        zoomAnim.start();
     }
 }

@@ -10,34 +10,32 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="64dp"
+        android:layout_marginTop="84dp"
         android:text="PEERLY"
         android:textColor="@color/text_primary"
-        android:textSize="28sp"
-        android:letterSpacing="0.35"
-        android:fontFamily="monospace"
+        android:textSize="32sp"
+        android:letterSpacing="0.4"
+        android:fontFamily="sans-serif-light"
         android:alpha="0.9" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="104dp"
-        android:text="peer-to-peer messenger"
+        android:layout_marginTop="130dp"
+        android:text="SECURE P2P MESH NETWORK"
         android:textColor="@color/text_secondary"
-        android:textSize="12sp"
-        android:letterSpacing="0.15"
-        android:fontFamily="monospace" />
+        android:textSize="10sp"
+        android:letterSpacing="0.25"
+        android:fontFamily="sans-serif-medium" />
 
-    <!-- Earth rises from below in code -->
     <com.example.Peerly.EarthView
         android:id="@+id/earthView"
-        android:layout_width="220dp"
-        android:layout_height="220dp"
+        android:layout_width="320dp"
+        android:layout_height="320dp"
         android:layout_gravity="center"
-        android:layout_marginBottom="80dp" />
+        android:layout_marginTop="20dp" />
 
-    <!-- Card slides up from bottom -->
     <LinearLayout
         android:id="@+id/loginCard"
         android:layout_width="match_parent"
@@ -45,26 +43,25 @@
         android:layout_gravity="bottom"
         android:background="@drawable/bg_bottom_card"
         android:orientation="vertical"
-        android:padding="28dp"
-        android:paddingBottom="48dp"
-        android:visibility="invisible">
+        android:padding="32dp"
+        android:paddingBottom="64dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="choose a callsign"
+            android:text="IDENTIFY YOURSELF"
             android:textColor="@color/text_secondary"
-            android:textSize="11sp"
-            android:letterSpacing="0.15"
-            android:fontFamily="monospace"
-            android:layout_marginBottom="12dp" />
+            android:textSize="10sp"
+            android:letterSpacing="0.2"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginBottom="16dp" />
 
         <EditText
             android:id="@+id/usernameInput"
             style="@style/PeerlyEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="username"
+            android:hint="CALLSIGN"
             android:imeOptions="actionDone"
             android:inputType="textNoSuggestions"
             android:maxLength="20"
@@ -75,19 +72,9 @@
             style="@style/PeerlyButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="JOIN THE NETWORK" />
+            android:layout_marginTop="20dp"
+            android:text="ENTER NETWORK" />
 
-        <TextView
-            android:id="@+id/onlineCountText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="10dp"
-            android:textColor="@color/online_green"
-            android:textSize="11sp"
-            android:fontFamily="monospace"
-            tools:text="● 7 online now" />
     </LinearLayout>
 
 </FrameLayout>

@@ -98,6 +98,16 @@
             android:tint="@color/accent"
             android:padding="12dp" />
 
+        <ImageButton
+            android:id="@+id/callButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_call"
+            android:contentDescription="Call"
+            android:tint="@color/accent"
+            android:padding="12dp" />
+
         <TextView
             android:id="@+id/roomCodeLabel"
             android:layout_width="wrap_content"

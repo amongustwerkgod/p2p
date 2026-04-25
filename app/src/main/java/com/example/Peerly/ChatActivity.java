@@ -11,6 +11,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -29,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -37,16 +39,10 @@ public class ChatActivity extends AppCompatActivity {
     private MessageAdapter adapter;
     private RecyclerView recyclerView;
     private EditText messageInput;
-    private ImageButton sendButton;
-    private ImageButton attachButton;
-    private ImageButton muteButton;
-    private ImageButton voiceNoteButton;
-    private TextView typingIndicator;
-    private TextView qualityIndicator;
+    private ImageButton sendButton, attachButton, muteButton, voiceNoteButton, callButton;
+    private TextView typingIndicator, qualityIndicator;
     
-    private String peerName;
-    private String username;
-    private String roomId;
+    private String peerName, username, roomId;
     private WebRtcManager webRtcManager;
 
     private boolean isTyping = false;
@@ -61,6 +57,10 @@ public class ChatActivity extends AppCompatActivity {
     private String audioPath;
     private boolean isRecording = false;
 
+    // Calling state
+    private long callStartTime = 0;
+    private AlertDialog incomingCallDialog;
+
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) sendImage(uri);
@@ -74,15 +74,8 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // Remove FLAG_LAYOUT_NO_LIMITS to allow system to resize layout for keyboard
-        // getWindow().setFlags(
-        //    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-        //    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-        
         setContentView(R.layout.activity_chat);
 
-        // Set up WindowInsets to handle the keyboard properly while keeping the "seamless" look
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
             int systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
             int ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
@@ -104,6 +97,7 @@ public class ChatActivity extends AppCompatActivity {
         qualityIndicator = findViewById(R.id.qualityIndicator);
         muteButton = findViewById(R.id.muteButton);
         voiceNoteButton = findViewById(R.id.voiceNoteButton);
+        callButton = findViewById(R.id.callButton);
         
         peerNameLabel.setText("Waiting...");
         peerAvatar.setText("?");
@@ -113,16 +107,9 @@ public class ChatActivity extends AppCompatActivity {
         // RecyclerView
         recyclerView = findViewById(R.id.recyclerView);
         adapter = new MessageAdapter(username);
-        
         adapter.setOnMessageInteractionListener(new MessageAdapter.OnMessageInteractionListener() {
-            @Override
-            public void onMessageLongClick(Message message, int position) {
-                showReactionDialog(message);
-            }
-            @Override
-            public void onReactionClick(Message message, int position) {
-                showReactionDialog(message);
-            }
+            @Override public void onMessageLongClick(Message message, int position) { showReactionDialog(message); }
+            @Override public void onReactionClick(Message message, int position) { showReactionDialog(message); }
         });
 
         LinearLayoutManager llm = new LinearLayoutManager(this);
@@ -130,13 +117,10 @@ public class ChatActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(llm);
         recyclerView.setAdapter(adapter);
 
-        // Auto-scroll when keyboard appears
         recyclerView.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
             if (bottom < oldBottom) {
                 recyclerView.postDelayed(() -> {
-                    if (adapter.getItemCount() > 0) {
-                        recyclerView.smoothScrollToPosition(adapter.getItemCount() - 1);
-                    }
+                    if (adapter.getItemCount() > 0) recyclerView.smoothScrollToPosition(adapter.getItemCount() - 1);
                 }, 100);
             }
         });
@@ -150,10 +134,7 @@ public class ChatActivity extends AppCompatActivity {
             @Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}
             @Override public void onTextChanged(CharSequence s,int st,int b,int c){
                 sendButton.setEnabled(!s.toString().trim().isEmpty());
-                if (!isTyping) {
-                    isTyping = true;
-                    sendTypingStatus(true);
-                }
+                if (!isTyping) { isTyping = true; sendTypingStatus(true); }
                 typingHandler.removeCallbacks(stopTypingRunnable);
                 typingHandler.postDelayed(stopTypingRunnable, 2000);
             }
@@ -161,75 +142,86 @@ public class ChatActivity extends AppCompatActivity {
         });
 
         messageInput.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_SEND ||
-                (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
-                 && event.getAction() == KeyEvent.ACTION_DOWN
-                 && !event.isShiftPressed())) {
-                sendMessage();
-                return true;
+            if (actionId == EditorInfo.IME_ACTION_SEND || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN && !event.isShiftPressed())) {
+                sendMessage(); return true;
             }
             return false;
         });
 
         sendButton.setOnClickListener(v -> sendMessage());
         attachButton.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
-        
         muteButton.setOnClickListener(v -> toggleMute());
         
         voiceNoteButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                checkPermissionAndRecord();
-            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                stopRecordingAndSend();
-            }
+            if (event.getAction() == MotionEvent.ACTION_DOWN) checkPermissionAndRecord();
+            else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) stopRecordingAndSend();
             return true;
         });
 
+        callButton.setOnClickListener(v -> placeCall());
+
         // WebRTC Mesh Setup
         webRtcManager = new WebRtcManager(this, roomId, username, new WebRtcManager.MessageListener() {
-            @Override
-            public void onMessageReceived(String sender, String message) {
-                runOnUiThread(() -> handleIncomingData(sender, message));
-            }
-            @Override
-            public void onStatusChanged(String status) {
-                runOnUiThread(() -> Toast.makeText(ChatActivity.this, status, Toast.LENGTH_SHORT).show());
-            }
-            @Override
-            public void onPeersChanged(List<String> peers) {
+            @Override public void onMessageReceived(String sender, String message) { runOnUiThread(() -> handleIncomingData(sender, message)); }
+            @Override public void onStatusChanged(String status) { runOnUiThread(() -> Toast.makeText(ChatActivity.this, status, Toast.LENGTH_SHORT).show()); }
+            @Override public void onPeersChanged(List<String> peers) {
                 runOnUiThread(() -> {
-                    if (peers.size() > 1) {
-                        peerNameLabel.setText(roomId);
-                        peerAvatar.setText("G");
-                    } else if (peers.size() == 1) {
-                        String name = peers.get(0);
-                        peerNameLabel.setText(name);
-                        peerAvatar.setText(String.valueOf(name.charAt(0)).toUpperCase());
-                    } else {
-                        peerNameLabel.setText("Waiting...");
-                        peerAvatar.setText("?");
-                    }
+                    if (peers.size() > 1) { peerNameLabel.setText(roomId); peerAvatar.setText("G"); }
+                    else if (peers.size() == 1) {
+                        peerName = peers.get(0);
+                        peerNameLabel.setText(peerName);
+                        peerAvatar.setText(String.valueOf(peerName.charAt(0)).toUpperCase());
+                    } else { peerNameLabel.setText("Waiting..."); peerAvatar.setText("?"); }
                 });
             }
+            @Override public void onIncomingCall(String fromPeer) { runOnUiThread(() -> showIncomingCallDialog(fromPeer)); }
+            @Override public void onCallAccepted(String fromPeer) { runOnUiThread(() -> startCallTimer(fromPeer)); }
+            @Override public void onCallRejected(String fromPeer) { runOnUiThread(() -> Toast.makeText(ChatActivity.this, fromPeer + " rejected the call", Toast.LENGTH_SHORT).show()); }
         });
 
         startNetworkMonitoring();
     }
 
+    private void placeCall() {
+        if (peerName == null || peerName.equals("Waiting...")) {
+            Toast.makeText(this, "No peer to call", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Toast.makeText(this, "Calling " + peerName + "...", Toast.LENGTH_SHORT).show();
+        webRtcManager.sendToPeer(peerName, "CALL_INVITE");
+    }
+
+    private void showIncomingCallDialog(String fromPeer) {
+        incomingCallDialog = new AlertDialog.Builder(this)
+                .setTitle("Incoming Call")
+                .setMessage(fromPeer + " is calling you...")
+                .setPositiveButton("Accept", (dialog, which) -> {
+                    webRtcManager.sendToPeer(fromPeer, "CALL_ACCEPT");
+                    startCallTimer(fromPeer);
+                })
+                .setNegativeButton("Reject", (dialog, which) -> {
+                    webRtcManager.sendToPeer(fromPeer, "CALL_REJECT");
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    private void startCallTimer(String peer) {
+        callStartTime = SystemClock.elapsedRealtime();
+        Toast.makeText(this, "Call connected with " + peer, Toast.LENGTH_SHORT).show();
+        // Log duration when activity finishes or call ends (simplified for now)
+    }
+
     private void toggleMute() {
         isMuted = !isMuted;
         webRtcManager.setMute(isMuted);
-        muteButton.setImageResource(isMuted ? R.drawable.ic_mic : R.drawable.ic_mic); // Add mic_off if you have it
         muteButton.setColorFilter(isMuted ? 0xFFFF4444 : 0xFF7070FF);
         Toast.makeText(this, isMuted ? "Muted" : "Unmuted", Toast.LENGTH_SHORT).show();
     }
 
     private void checkPermissionAndRecord() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
-        } else {
-            startRecording();
-        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+        else startRecording();
     }
 
     private void startRecording() {
@@ -239,28 +231,16 @@ public class ChatActivity extends AppCompatActivity {
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
         mediaRecorder.setOutputFile(audioPath);
         mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-        try {
-            mediaRecorder.prepare();
-            mediaRecorder.start();
-            isRecording = true;
-            voiceNoteButton.setColorFilter(0xFFFF4444);
-        } catch (IOException e) {
-            Log.e("ChatActivity", "Recorder failed", e);
-        }
+        try { mediaRecorder.prepare(); mediaRecorder.start(); isRecording = true; voiceNoteButton.setColorFilter(0xFFFF4444); }
+        catch (IOException e) { Log.e("ChatActivity", "Recorder failed", e); }
     }
 
     private void stopRecordingAndSend() {
         if (!isRecording) return;
-        try {
-            mediaRecorder.stop();
-            mediaRecorder.release();
-        } catch (Exception e) {}
-        mediaRecorder = null;
-        isRecording = false;
+        try { mediaRecorder.stop(); mediaRecorder.release(); } catch (Exception e) {}
+        mediaRecorder = null; isRecording = false;
         voiceNoteButton.setColorFilter(0xFF7070FF);
-        
-        Uri uri = Uri.fromFile(new File(audioPath));
-        sendVoiceNote(uri);
+        sendVoiceNote(Uri.fromFile(new File(audioPath)));
     }
 
     private void sendVoiceNote(Uri uri) {
@@ -278,61 +258,35 @@ public class ChatActivity extends AppCompatActivity {
         } else if (data.startsWith("AUD:")) {
             adapter.addMessage(new Message(sender, data.substring(4), Message.Type.AUDIO, false));
             scrollToBottom();
-        } else if (data.startsWith("PNG:")) {
-            webRtcManager.broadcastMessage("POG:" + data.substring(4));
-        } else if (data.startsWith("POG:")) {
-            long rtt = System.currentTimeMillis() - Long.parseLong(data.substring(4));
-            updateQualityUI(rtt);
-        } else if (data.startsWith("IMG:")) {
-            adapter.addMessage(new Message(sender, data.substring(4), Message.Type.IMAGE, false));
-            scrollToBottom();
-        } else {
-            adapter.addMessage(new Message(sender, data, false));
-            scrollToBottom();
-        }
+        } else if (data.startsWith("PNG:")) { webRtcManager.broadcastMessage("POG:" + data.substring(4)); }
+        else if (data.startsWith("POG:")) { updateQualityUI(System.currentTimeMillis() - Long.parseLong(data.substring(4))); }
+        else if (data.startsWith("IMG:")) { adapter.addMessage(new Message(sender, data.substring(4), Message.Type.IMAGE, false)); scrollToBottom(); }
+        else { adapter.addMessage(new Message(sender, data, false)); scrollToBottom(); }
     }
 
     private void showReactionDialog(Message message) {
         String[] emojis = {"❤️", "😂", "😮", "🔥", "👍", "👎"};
-        new AlertDialog.Builder(this)
-                .setTitle("React")
-                .setItems(emojis, (dialog, which) -> {
-                    String emoji = emojis[which];
-                    message.reactions.put(username, emoji);
-                    adapter.notifyDataSetChanged();
-                    if (webRtcManager != null) {
-                        webRtcManager.broadcastMessage("REA:" + emoji + ":" + message.timestamp);
-                    }
-                })
-                .show();
+        new AlertDialog.Builder(this).setTitle("React").setItems(emojis, (dialog, which) -> {
+            String emoji = emojis[which];
+            message.reactions.put(username, emoji);
+            adapter.notifyDataSetChanged();
+            if (webRtcManager != null) webRtcManager.broadcastMessage("REA:" + emoji + ":" + message.timestamp);
+        }).show();
     }
 
-    private void sendTypingStatus(boolean typing) {
-        isTyping = typing;
-        if (webRtcManager != null) {
-            webRtcManager.broadcastMessage("TYP:" + (typing ? "ON" : "OFF"));
-        }
-    }
+    private void sendTypingStatus(boolean typing) { if (webRtcManager != null) webRtcManager.broadcastMessage("TYP:" + (typing ? "ON" : "OFF")); }
 
     private void startNetworkMonitoring() {
         qualityTimer = new Timer();
         qualityTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                if (webRtcManager != null) {
-                    lastPingTime = System.currentTimeMillis();
-                    webRtcManager.broadcastMessage("PNG:" + lastPingTime);
-                }
-            }
+            @Override public void run() { if (webRtcManager != null) { lastPingTime = System.currentTimeMillis(); webRtcManager.broadcastMessage("PNG:" + lastPingTime); } }
         }, 1000, 5000);
     }
 
     private void updateQualityUI(long rtt) {
-        String color = "#40D080";
-        String status = "Excellent";
+        String color = "#40D080"; String status = "Excellent";
         if (rtt > 150) { color = "#FFC107"; status = "Fair"; }
         if (rtt > 300) { color = "#F44336"; status = "Poor"; }
-        
         qualityIndicator.setText(rtt + "ms (" + status + ")");
         qualityIndicator.setTextColor(android.graphics.Color.parseColor(color));
     }
@@ -353,16 +307,15 @@ public class ChatActivity extends AppCompatActivity {
         if (webRtcManager != null) webRtcManager.broadcastMessage("IMG:" + uriString);
     }
 
-    private void scrollToBottom() {
-        recyclerView.post(() -> {
-            if (adapter.getItemCount() > 0)
-                recyclerView.smoothScrollToPosition(adapter.getItemCount() - 1);
-        });
-    }
+    private void scrollToBottom() { recyclerView.post(() -> { if (adapter.getItemCount() > 0) recyclerView.smoothScrollToPosition(adapter.getItemCount() - 1); }); }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (callStartTime > 0) {
+            long durationSeconds = (SystemClock.elapsedRealtime() - callStartTime) / 1000;
+            Log.d("ChatActivity", String.format(Locale.getDefault(), "Call ended. Duration: %d:%02d", durationSeconds / 60, durationSeconds % 60));
+        }
         if (qualityTimer != null) qualityTimer.cancel();
         if (webRtcManager != null) webRtcManager.onDestroy();
     }

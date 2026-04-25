@@ -15,7 +15,7 @@
         android:theme="@style/Theme.Peerly">
 
         <activity
-            android:name=".UsernameActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -24,13 +24,9 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".MainActivity" android:exported="false"/>
-
         <activity android:name=".ChatActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize"/>
 
-        <activity android:name=".WorldChatActivity" android:exported="false"
-            android:windowSoftInputMode="adjustResize"/>
     </application>
 
 </manifest>

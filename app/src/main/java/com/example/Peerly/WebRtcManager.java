@@ -33,6 +33,9 @@ public class WebRtcManager {
         void onMessageReceived(String sender, String message);
         void onStatusChanged(String status);
         void onPeersChanged(List<String> peers);
+        void onIncomingCall(String fromPeer);
+        void onCallAccepted(String fromPeer);
+        void onCallRejected(String fromPeer);
     }
 
     private MessageListener listener;
@@ -107,8 +110,6 @@ public class WebRtcManager {
         PeerConnection pc = createPeerConnection(peerId);
         peerConnections.put(peerId, pc);
         
-        pc.addTrack(localAudioTrack, List.of("ARDAMS"));
-        
         DataChannel.Init init = new DataChannel.Init();
         DataChannel dc = pc.createDataChannel("chat", init);
         setupDataChannel(peerId, dc);
@@ -167,12 +168,37 @@ public class WebRtcManager {
                 byte[] bytes = new byte[buffer.data.remaining()];
                 buffer.data.get(bytes);
                 String msg = new String(bytes, StandardCharsets.UTF_8);
-                listener.onMessageReceived(peerId, msg);
+                
+                if (msg.equals("CALL_INVITE")) {
+                    listener.onIncomingCall(peerId);
+                } else if (msg.equals("CALL_ACCEPT")) {
+                    enableAudioForPeer(peerId);
+                    listener.onCallAccepted(peerId);
+                } else if (msg.equals("CALL_REJECT")) {
+                    listener.onCallRejected(peerId);
+                } else {
+                    listener.onMessageReceived(peerId, msg);
+                }
             }
             @Override public void onBufferedAmountChange(long l) {}
             @Override public void onStateChange() {}
         });
         dataChannels.put(peerId, dc);
+    }
+
+    private void enableAudioForPeer(String peerId) {
+        final PeerConnection pc = peerConnections.get(peerId);
+        if (pc != null) {
+            pc.addTrack(localAudioTrack, List.of("ARDAMS"));
+            // Trigger renegotiation
+            pc.createOffer(new SdpObserverAdapter() {
+                @Override
+                public void onCreateSuccess(SessionDescription sdp) {
+                    pc.setLocalDescription(new SdpObserverAdapter(), sdp);
+                    sendSignal(peerId, "offer", sdp.description);
+                }
+            }, new MediaConstraints());
+        }
     }
 
     private void listenForIncomingSignals() {
@@ -214,14 +240,18 @@ public class WebRtcManager {
     }
 
     private void handleOffer(String peerId, String sdpText) {
-        PeerConnection pc = createPeerConnection(peerId);
-        peerConnections.put(peerId, pc);
-        pc.addTrack(localAudioTrack, List.of("ARDAMS"));
+        PeerConnection pc = peerConnections.get(peerId);
+        if (pc == null) {
+            pc = createPeerConnection(peerId);
+            peerConnections.put(peerId, pc);
+        }
+        
+        final PeerConnection finalPc = pc;
         pc.setRemoteDescription(new SdpObserverAdapter(), new SessionDescription(SessionDescription.Type.OFFER, sdpText));
         pc.createAnswer(new SdpObserverAdapter() {
             @Override
             public void onCreateSuccess(SessionDescription sdp) {
-                pc.setLocalDescription(new SdpObserverAdapter(), sdp);
+                finalPc.setLocalDescription(new SdpObserverAdapter(), sdp);
                 sendSignal(peerId, "answer", sdp.description);
             }
         }, new MediaConstraints());
@@ -239,6 +269,13 @@ public class WebRtcManager {
                 dc.send(dcBuffer);
                 buffer.rewind();
             }
+        }
+    }
+
+    public void sendToPeer(String peerId, String message) {
+        DataChannel dc = dataChannels.get(peerId);
+        if (dc != null && dc.state() == DataChannel.State.OPEN) {
+            dc.send(new DataChannel.Buffer(ByteBuffer.wrap(message.getBytes(StandardCharsets.UTF_8)), false));
         }
     }
 
