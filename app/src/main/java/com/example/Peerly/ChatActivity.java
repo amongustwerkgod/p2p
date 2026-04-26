@@ -243,10 +243,7 @@ public class ChatActivity extends AppCompatActivity {
     private void startRinging(boolean isIncoming) {
         stopRinging();
         try {
-            Uri alert = isIncoming 
-                ? RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                : RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE); // Could use a different sound for outgoing
-            
+            Uri alert = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
             ringtonePlayer = new MediaPlayer();
             ringtonePlayer.setDataSource(this, alert);
             ringtonePlayer.setAudioStreamType(AudioManager.STREAM_RING);
@@ -364,7 +361,7 @@ public class ChatActivity extends AppCompatActivity {
     private void toggleMute() {
         isMuted = !isMuted;
         webRtcManager.setMute(isMuted);
-        muteButton.setColorFilter(isMuted ? 0xFFFF4444 : 0xFF7070FF);
+        muteButton.setColorFilter(isMuted ? 0xFFFF4444 : 0xFF40D080);
         Toast.makeText(this, isMuted ? "Muted" : "Unmuted", Toast.LENGTH_SHORT).show();
     }
 
@@ -388,7 +385,7 @@ public class ChatActivity extends AppCompatActivity {
         if (!isRecording) return;
         try { mediaRecorder.stop(); mediaRecorder.release(); } catch (Exception e) {}
         mediaRecorder = null; isRecording = false;
-        voiceNoteButton.setColorFilter(0xFF7070FF);
+        voiceNoteButton.setColorFilter(0xFF40D080);
         
         File audioFile = new File(audioPath);
         Uri contentUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", audioFile);

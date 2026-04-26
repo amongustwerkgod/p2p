@@ -8,6 +8,8 @@ import org.webrtc.audio.JavaAudioDeviceModule;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ public class WebRtcManager {
     private final Map<String, PeerConnection> peerConnections = new ConcurrentHashMap<>();
     private final Map<String, DataChannel> dataChannels = new ConcurrentHashMap<>();
     private final List<String> activePeers = new ArrayList<>();
+    private final Map<String, Boolean> peerCandidatesListeners = new ConcurrentHashMap<>();
     
     private AudioSource audioSource;
     private AudioTrack localAudioTrack;
@@ -180,6 +183,7 @@ public class WebRtcManager {
                 if (msg.equals("CALL_INVITE")) {
                     listener.onIncomingCall(peerId);
                 } else if (msg.equals("CALL_ACCEPT")) {
+                    enableAudioForPeer(peerId);
                     listener.onCallAccepted(peerId);
                 } else if (msg.equals("CALL_REJECT")) {
                     listener.onCallRejected(peerId);
@@ -196,16 +200,27 @@ public class WebRtcManager {
     public void enableAudioForPeer(String peerId) {
         final PeerConnection pc = peerConnections.get(peerId);
         if (pc != null) {
-            pc.addTrack(localAudioTrack, List.of("ARDAMS"));
-            // Only the "caller" (lower ID) initiates the renegotiation offer to avoid glare
-            if (myId.compareTo(peerId) < 0) {
-                pc.createOffer(new SdpObserverAdapter() {
-                    @Override
-                    public void onCreateSuccess(SessionDescription sdp) {
-                        pc.setLocalDescription(new SdpObserverAdapter(), sdp);
-                        sendSignal(peerId, "offer", sdp.description);
-                    }
-                }, new MediaConstraints());
+            // Check if track is already added to avoid crash
+            boolean alreadyAdded = false;
+            for (RtpSender sender : pc.getSenders()) {
+                if (sender.track() != null && sender.track().id().equals(localAudioTrack.id())) {
+                    alreadyAdded = true;
+                    break;
+                }
+            }
+            
+            if (!alreadyAdded) {
+                pc.addTrack(localAudioTrack, Collections.singletonList("ARDAMS"));
+                // Only the "caller" (lower ID) initiates the renegotiation offer to avoid glare
+                if (myId.compareTo(peerId) < 0) {
+                    pc.createOffer(new SdpObserverAdapter() {
+                        @Override
+                        public void onCreateSuccess(SessionDescription sdp) {
+                            pc.setLocalDescription(new SdpObserverAdapter(), sdp);
+                            sendSignal(peerId, "offer", sdp.description);
+                        }
+                    }, new MediaConstraints());
+                }
             }
         }
     }
@@ -238,7 +253,10 @@ public class WebRtcManager {
             if (pc != null) pc.setRemoteDescription(new SdpObserverAdapter(), new SessionDescription(SessionDescription.Type.ANSWER, answer));
         }
 
-        // Listen for candidates if not already listening
+        // Listen for candidates if not already listening for this peer
+        if (Boolean.TRUE.equals(peerCandidatesListeners.get(fromPeerId))) return;
+        
+        peerCandidatesListeners.put(fromPeerId, true);
         snapshot.child("candidates").getRef().addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot snap, String s) {
@@ -309,6 +327,7 @@ public class WebRtcManager {
             dc.unregisterObserver();
             dc.dispose();
         }
+        peerCandidatesListeners.remove(peerId);
         roomRef.child("signals").child(peerId).child(myId).removeValue();
     }
 

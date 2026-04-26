@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -131,17 +132,27 @@ public class MainActivity extends AppCompatActivity {
         presenceRef = FirebaseDatabase.getInstance().getReference("presence");
         myPresenceRef = presenceRef.child(username);
         myPresenceRef.child("online").setValue(true);
+        myPresenceRef.child("lastSeen").setValue(ServerValue.TIMESTAMP);
         myPresenceRef.child("online").onDisconnect().setValue(false);
+        myPresenceRef.child("lastSeen").onDisconnect().setValue(ServerValue.TIMESTAMP);
 
         presenceListener = presenceRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
                 Set<String> activePeers = new HashSet<>();
+                long now = System.currentTimeMillis();
                 for (DataSnapshot child : snapshot.getChildren()) {
                     Boolean online = child.child("online").getValue(Boolean.class);
+                    Long lastSeen = child.child("lastSeen").getValue(Long.class);
                     String name = child.getKey();
-                    if (Boolean.TRUE.equals(online) && name != null && !name.equals(username)) {
-                        activePeers.add(name);
+                    
+                    if (name != null && !name.equals(username)) {
+                        // A peer is considered active if they are marked online AND have been seen in the last 2 minutes
+                        // This handles ghost entries from yesterday or unclean disconnects
+                        boolean isRecentlySeen = lastSeen != null && (now - lastSeen) < 120000;
+                        if (Boolean.TRUE.equals(online) && isRecentlySeen) {
+                            activePeers.add(name);
+                        }
                     }
                 }
                 hubView.setPeers(activePeers);
@@ -150,6 +161,18 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onCancelled(DatabaseError error) {}
         });
+
+        // Periodically update lastSeen while the app is active
+        final Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (isLoggedIn && myPresenceRef != null) {
+                    myPresenceRef.child("lastSeen").setValue(ServerValue.TIMESTAMP);
+                    handler.postDelayed(this, 60000); // Update every minute
+                }
+            }
+        }, 60000);
     }
 
     private void setupChat() {
@@ -231,7 +254,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (isLoggedIn && myPresenceRef != null) myPresenceRef.child("online").setValue(true);
+        if (isLoggedIn && myPresenceRef != null) {
+            myPresenceRef.child("online").setValue(true);
+            myPresenceRef.child("lastSeen").setValue(ServerValue.TIMESTAMP);
+        }
         hubView.resumeAnimations();
     }
 

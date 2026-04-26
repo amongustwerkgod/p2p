@@ -1,59 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- The Earth Sphere -->
+    <!-- Solid Dark Space Background -->
     <path
-        android:pathData="M54,54m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:centerX="54"
-                android:centerY="54"
-                android:gradientRadius="36"
-                android:type="radial">
-                <item android:color="#FF1A3A6A" android:offset="0" />
-                <item android:color="#FF060F20" android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:pathData="M54,54m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0"
+        android:fillColor="#060F20" />
 
-    <!-- Land Blobs (stylized as in the app) -->
+    <!-- Stylized Continents in Teal/Green -->
     <path
-        android:fillColor="#FF1E6640"
+        android:fillColor="#40D080"
         android:pathData="M44,40c2,-4 8,-2 10,2c2,4 -2,8 -6,6c-4,-2 -6,-4 -4,-8z
                          M60,60c4,-2 8,2 6,6c-2,4 -6,2 -6,0z
                          M40,65c3,0 5,3 2,5c-3,2 -5,-2 -2,-5z" />
 
-    <!-- Atmospheric Glow -->
+    <!-- Subtle Blue Border Glow -->
     <path
-        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:centerX="54"
-                android:centerY="54"
-                android:gradientRadius="40"
-                android:type="radial">
-                <item android:color="#333C78FF" android:offset="0.8" />
-                <item android:color="#003C78FF" android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:pathData="M54,54m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0"
+        android:strokeColor="#3C78FF"
+        android:strokeWidth="1.5" />
 
-    <!-- Network / P2P Connectivity lines -->
+    <!-- Network Connectivity Points -->
     <path
-        android:strokeColor="#8040D080"
+        android:strokeColor="#40D080"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
-        android:pathData="M30,30L20,20 M78,30L88,20 M30,78L20,88 M78,78L88,88" />
+        android:pathData="M30,30L22,22 M78,30L86,22 M30,78L22,86 M78,78L86,86" />
 
     <path
         android:fillColor="#40D080"
-        android:pathData="M20,20m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0
-                         M88,20m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0
-                         M20,88m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0
-                         M88,88m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+        android:pathData="M22,22m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0
+                         M86,22m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0
+                         M22,86m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0
+                         M86,86m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
 </vector>
