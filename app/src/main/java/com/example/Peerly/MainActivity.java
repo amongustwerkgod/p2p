@@ -12,6 +12,8 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.*;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.firebase.database.*;
@@ -20,7 +22,7 @@ import java.util.*;
 public class MainActivity extends AppCompatActivity {
 
     private HubView hubView;
-    private View loginContainer, chatContainer;
+    private View loginContainer, chatContainer, mainRoot;
     private EditText usernameInput, messageInput;
     private Button joinButton;
     private ImageButton sendButton, backButton;
@@ -38,11 +40,22 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
         
+        // Use fitSystemWindows to handle status bar and navigation bar properly
         setContentView(R.layout.activity_main);
+        
+        mainRoot = findViewById(R.id.mainRoot);
+        
+        // Comprehensive Window Insets Handling for modern displays
+        ViewCompat.setOnApplyWindowInsetsListener(mainRoot, (v, insets) -> {
+            int imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+            int systemBarsBottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
+            int systemBarsTop = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
+            
+            // Padding top to avoid status bar / slide down toolbar
+            v.setPadding(0, systemBarsTop, 0, Math.max(imeHeight, systemBarsBottom));
+            return insets;
+        });
 
         // UI Initialization
         hubView = findViewById(R.id.hubView);
@@ -55,11 +68,8 @@ public class MainActivity extends AppCompatActivity {
         backButton = findViewById(R.id.backButton);
         recyclerView = findViewById(R.id.recyclerView);
 
-        // Initial State: Star background
         hubView.setZoomFactor(0.02f);
-
         joinButton.setOnClickListener(v -> attemptLogin());
-
         hubView.setOnEarthClickedListener(() -> showWorldChat());
         
         hubView.setOnPeerClickedListener(peerName -> {
@@ -73,12 +83,10 @@ public class MainActivity extends AppCompatActivity {
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         });
 
-        // Setup the back button click listener
         if (backButton != null) {
             backButton.setOnClickListener(v -> hideWorldChat());
         }
 
-        // Handle system Back Press with modern API
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -103,7 +111,6 @@ public class MainActivity extends AppCompatActivity {
         username = name;
         isLoggedIn = true;
 
-        // SEAMLESS ANIMATION: Login UI fades, Earth zooms in
         loginContainer.animate().alpha(0f).setDuration(500).setListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
@@ -150,8 +157,13 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(chatAdapter);
 
+        recyclerView.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (bottom < oldBottom && chatAdapter.getItemCount() > 0) {
+                recyclerView.postDelayed(() -> recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1), 100);
+            }
+        });
+
         chatRef = FirebaseDatabase.getInstance().getReference("nearby_chat");
-        
         sendButton.setOnClickListener(v -> sendMessage());
         
         chatListener = chatRef.limitToLast(50).addChildEventListener(new ChildEventListener() {
@@ -159,8 +171,9 @@ public class MainActivity extends AppCompatActivity {
             public void onChildAdded(DataSnapshot snapshot, String s) {
                 String from = snapshot.child("from").getValue(String.class);
                 String text = snapshot.child("text").getValue(String.class);
+                String key = snapshot.getKey();
                 if (from != null && text != null) {
-                    chatAdapter.addMessage(new Message(from, text, from.equals(username)));
+                    chatAdapter.addMessage(new Message(key, from, text, from.equals(username)));
                     recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
                 }
             }
@@ -185,18 +198,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void showWorldChat() {
         if (chatContainer.getVisibility() == View.VISIBLE) return;
-
         chatContainer.setVisibility(View.VISIBLE);
         chatContainer.setAlpha(0f);
         chatContainer.animate().alpha(1f).setDuration(800).start();
-
-        // SEAMLESS ZOOM INTO EARTH: Earth grows and fades out as we enter atmosphere
         ValueAnimator zoom = ValueAnimator.ofFloat(1.0f, 10.0f);
         zoom.setDuration(1000);
         zoom.setInterpolator(new AccelerateDecelerateInterpolator());
         zoom.addUpdateListener(a -> hubView.setZoomFactor((float) a.getAnimatedValue()));
         zoom.start();
-
         hubView.animate().alpha(0f).setDuration(1000).start();
     }
 
@@ -207,14 +216,11 @@ public class MainActivity extends AppCompatActivity {
                 chatContainer.setVisibility(View.GONE);
             }
         }).start();
-
-        // SEAMLESS ZOOM OUT: Camera pulls back from Earth
         ValueAnimator zoom = ValueAnimator.ofFloat(10.0f, 1.0f);
         zoom.setDuration(800);
         zoom.setInterpolator(new DecelerateInterpolator());
         zoom.addUpdateListener(a -> hubView.setZoomFactor((float) a.getAnimatedValue()));
         zoom.start();
-
         hubView.animate().alpha(1f).setDuration(800).start();
     }
 

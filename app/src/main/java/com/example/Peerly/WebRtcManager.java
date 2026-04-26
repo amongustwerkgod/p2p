@@ -107,10 +107,12 @@ public class WebRtcManager {
     }
 
     private void initiateConnection(String peerId) {
+        closeConnection(peerId);
         PeerConnection pc = createPeerConnection(peerId);
         peerConnections.put(peerId, pc);
         
         DataChannel.Init init = new DataChannel.Init();
+        init.ordered = true;
         DataChannel dc = pc.createDataChannel("chat", init);
         setupDataChannel(peerId, dc);
         
@@ -129,6 +131,7 @@ public class WebRtcManager {
 
         PeerConnection.RTCConfiguration rtcConfig = new PeerConnection.RTCConfiguration(iceServers);
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
+        rtcConfig.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
 
         return factory.createPeerConnection(rtcConfig, new PeerConnection.Observer() {
             @Override
@@ -142,7 +145,12 @@ public class WebRtcManager {
 
             @Override public void onDataChannel(DataChannel dc) { setupDataChannel(peerId, dc); }
             @Override public void onIceConnectionChange(PeerConnection.IceConnectionState state) {
+                Log.d(TAG, "Connection state for " + peerId + ": " + state);
                 listener.onStatusChanged("Peer " + peerId + ": " + state.name());
+                
+                if (state == PeerConnection.IceConnectionState.DISCONNECTED || state == PeerConnection.IceConnectionState.FAILED) {
+                    if (myId.compareTo(peerId) < 0) initiateConnection(peerId);
+                }
             }
             @Override public void onTrack(RtpTransceiver transceiver) {
                 if (transceiver.getReceiver().track() instanceof AudioTrack) {
@@ -172,7 +180,6 @@ public class WebRtcManager {
                 if (msg.equals("CALL_INVITE")) {
                     listener.onIncomingCall(peerId);
                 } else if (msg.equals("CALL_ACCEPT")) {
-                    enableAudioForPeer(peerId);
                     listener.onCallAccepted(peerId);
                 } else if (msg.equals("CALL_REJECT")) {
                     listener.onCallRejected(peerId);
@@ -186,18 +193,20 @@ public class WebRtcManager {
         dataChannels.put(peerId, dc);
     }
 
-    private void enableAudioForPeer(String peerId) {
+    public void enableAudioForPeer(String peerId) {
         final PeerConnection pc = peerConnections.get(peerId);
         if (pc != null) {
             pc.addTrack(localAudioTrack, List.of("ARDAMS"));
-            // Trigger renegotiation
-            pc.createOffer(new SdpObserverAdapter() {
-                @Override
-                public void onCreateSuccess(SessionDescription sdp) {
-                    pc.setLocalDescription(new SdpObserverAdapter(), sdp);
-                    sendSignal(peerId, "offer", sdp.description);
-                }
-            }, new MediaConstraints());
+            // Only the "caller" (lower ID) initiates the renegotiation offer to avoid glare
+            if (myId.compareTo(peerId) < 0) {
+                pc.createOffer(new SdpObserverAdapter() {
+                    @Override
+                    public void onCreateSuccess(SessionDescription sdp) {
+                        pc.setLocalDescription(new SdpObserverAdapter(), sdp);
+                        sendSignal(peerId, "offer", sdp.description);
+                    }
+                }, new MediaConstraints());
+            }
         }
     }
 
@@ -205,34 +214,43 @@ public class WebRtcManager {
         roomRef.child("signals").child(myId).addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot snapshot, String s) {
-                String fromPeerId = snapshot.getKey();
-                if (fromPeerId == null) return;
-                String offer = snapshot.child("offer").getValue(String.class);
-                if (offer != null) handleOffer(fromPeerId, offer);
-                snapshot.child("candidates").getRef().addChildEventListener(new ChildEventListener() {
-                    @Override
-                    public void onChildAdded(DataSnapshot snap, String s) {
-                        PeerConnection pc = peerConnections.get(fromPeerId);
-                        if (pc != null) {
-                            String sdp = snap.child("sdp").getValue(String.class);
-                            String mid = snap.child("sdpMid").getValue(String.class);
-                            Integer idx = snap.child("sdpMLineIndex").getValue(Integer.class);
-                            if (sdp != null) pc.addIceCandidate(new IceCandidate(mid, idx, sdp));
-                        }
-                    }
-                    @Override public void onChildChanged(DataSnapshot s, String p) {}
-                    @Override public void onChildRemoved(DataSnapshot s) {}
-                    @Override public void onChildMoved(DataSnapshot s, String p) {}
-                    @Override public void onCancelled(DatabaseError e) {}
-                });
+                handleSignalUpdate(snapshot);
             }
             @Override public void onChildChanged(DataSnapshot snapshot, String s) {
-                String answer = snapshot.child("answer").getValue(String.class);
-                if (answer != null) {
-                    PeerConnection pc = peerConnections.get(snapshot.getKey());
-                    if (pc != null) pc.setRemoteDescription(new SdpObserverAdapter(), new SessionDescription(SessionDescription.Type.ANSWER, answer));
+                handleSignalUpdate(snapshot);
+            }
+            @Override public void onChildRemoved(DataSnapshot s) {}
+            @Override public void onChildMoved(DataSnapshot s, String p) {}
+            @Override public void onCancelled(DatabaseError e) {}
+        });
+    }
+
+    private void handleSignalUpdate(DataSnapshot snapshot) {
+        String fromPeerId = snapshot.getKey();
+        if (fromPeerId == null) return;
+        
+        String offer = snapshot.child("offer").getValue(String.class);
+        if (offer != null) handleOffer(fromPeerId, offer);
+        
+        String answer = snapshot.child("answer").getValue(String.class);
+        if (answer != null) {
+            PeerConnection pc = peerConnections.get(fromPeerId);
+            if (pc != null) pc.setRemoteDescription(new SdpObserverAdapter(), new SessionDescription(SessionDescription.Type.ANSWER, answer));
+        }
+
+        // Listen for candidates if not already listening
+        snapshot.child("candidates").getRef().addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot snap, String s) {
+                PeerConnection pc = peerConnections.get(fromPeerId);
+                if (pc != null) {
+                    String sdp = snap.child("sdp").getValue(String.class);
+                    String mid = snap.child("sdpMid").getValue(String.class);
+                    Integer idx = snap.child("sdpMLineIndex").getValue(Integer.class);
+                    if (sdp != null) pc.addIceCandidate(new IceCandidate(mid, idx, sdp));
                 }
             }
+            @Override public void onChildChanged(DataSnapshot s, String p) {}
             @Override public void onChildRemoved(DataSnapshot s) {}
             @Override public void onChildMoved(DataSnapshot s, String p) {}
             @Override public void onCancelled(DatabaseError e) {}
@@ -282,8 +300,16 @@ public class WebRtcManager {
     private void closeConnection(String peerId) {
         if (peerId == null) return;
         PeerConnection pc = peerConnections.remove(peerId);
-        if (pc != null) pc.dispose();
-        dataChannels.remove(peerId);
+        if (pc != null) {
+            pc.close();
+            pc.dispose();
+        }
+        DataChannel dc = dataChannels.remove(peerId);
+        if (dc != null) {
+            dc.unregisterObserver();
+            dc.dispose();
+        }
+        roomRef.child("signals").child(peerId).child(myId).removeValue();
     }
 
     public void onDestroy() {
@@ -291,9 +317,9 @@ public class WebRtcManager {
         roomRef.child("signals").child(myId).removeValue();
         if (localAudioTrack != null) localAudioTrack.dispose();
         if (audioSource != null) audioSource.dispose();
-        for (PeerConnection pc : peerConnections.values()) pc.dispose();
-        peerConnections.clear();
-        dataChannels.clear();
+        for (String peerId : new ArrayList<>(peerConnections.keySet())) {
+            closeConnection(peerId);
+        }
         if (factory != null) factory.dispose();
     }
 }

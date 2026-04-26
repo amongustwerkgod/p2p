@@ -1,15 +1,33 @@
 package com.example.Peerly;
 
+import android.content.ContentValues;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Log;
 import android.view.*;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
+import com.bumptech.glide.request.target.CustomTarget;
+import com.bumptech.glide.request.transition.Transition;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,9 +39,10 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
     }
 
     private static final int TYPE_SENT = 0, TYPE_RECV = 1;
-    private final List<Message> messages = new ArrayList<>();
+    public final List<Message> messages = new ArrayList<>();
     private final String myUsername;
     private OnMessageInteractionListener interactionListener;
+    private MediaPlayer currentAudioPlayer;
 
     public MessageAdapter(String myUsername) { this.myUsername = myUsername; }
 
@@ -49,6 +68,22 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
             if (key.equals(messages.get(i).key)) return i;
         }
         return -1;
+    }
+
+    // New helper to find message by UUID/ID
+    public int getPositionByMsgId(String msgId) {
+        if (msgId == null) return -1;
+        for (int i = 0; i < messages.size(); i++) {
+            if (msgId.equals(messages.get(i).key)) return i;
+        }
+        return -1;
+    }
+
+    public void updateMessage(int position, Message m) {
+        if (position >= 0 && position < messages.size()) {
+            messages.set(position, m);
+            notifyItemChanged(position);
+        }
     }
 
     @Override public int getItemViewType(int pos) {
@@ -81,9 +116,11 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
                 .transition(DrawableTransitionOptions.withCrossFade())
                 .placeholder(R.drawable.bg_bubble_recv)
                 .into(h.image);
+            
+            h.saveImageBtn.setOnClickListener(v -> saveImageToGallery(h.itemView.getContext(), m.mediaUrl));
         } else if (m.type == Message.Type.AUDIO) {
             h.audioContainer.setVisibility(View.VISIBLE);
-            h.audioPlayBtn.setOnClickListener(v -> playAudio(m.mediaUrl));
+            h.audioPlayBtn.setOnClickListener(v -> playAudio(h.itemView.getContext(), m.mediaUrl));
         } else {
             h.text.setVisibility(View.VISIBLE);
             h.text.setText(m.text);
@@ -94,7 +131,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
         if (m.reactions != null && !m.reactions.isEmpty()) {
             h.reactionContainer.setVisibility(View.VISIBLE);
             StringBuilder sb = new StringBuilder();
-            Map<String, Integer> counts = new java.util.HashMap<>();
+            Map<String, Integer> counts = new HashMap<>();
             for (String r : m.reactions.values()) {
                 counts.put(r, counts.getOrDefault(r, 0) + 1);
             }
@@ -123,15 +160,63 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
         }
     }
 
-    private void playAudio(String url) {
+    private void saveImageToGallery(Context context, Uri uri) {
+        Glide.with(context)
+                .asBitmap()
+                .load(uri)
+                .into(new CustomTarget<Bitmap>() {
+                    @Override
+                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
+                        try {
+                            String filename = "Peerly_" + System.currentTimeMillis() + ".jpg";
+                            OutputStream fos;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                ContentValues values = new ContentValues();
+                                values.put(MediaStore.MediaColumns.DISPLAY_NAME, filename);
+                                values.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+                                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Peerly");
+                                Uri imageUri = context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                                fos = context.getContentResolver().openOutputStream(imageUri);
+                            } else {
+                                String imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString() + "/Peerly";
+                                File file = new File(imagesDir);
+                                if (!file.exists()) file.mkdir();
+                                File image = new File(imagesDir, filename);
+                                fos = new FileOutputStream(image);
+                            }
+                            resource.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+                            fos.flush();
+                            fos.close();
+                            Toast.makeText(context, "Saved to Gallery", Toast.LENGTH_SHORT).show();
+                        } catch (Exception e) {
+                            Log.e("MessageAdapter", "Save failed", e);
+                            Toast.makeText(context, "Save failed", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    @Override public void onLoadCleared(@Nullable Drawable placeholder) {}
+                });
+    }
+
+    private void playAudio(Context context, Uri uri) {
+        if (currentAudioPlayer != null) {
+            currentAudioPlayer.release();
+            currentAudioPlayer = null;
+        }
         try {
-            MediaPlayer mp = new MediaPlayer();
-            mp.setDataSource(url);
-            mp.prepare();
-            mp.start();
-            mp.setOnCompletionListener(MediaPlayer::release);
+            currentAudioPlayer = new MediaPlayer();
+            currentAudioPlayer.setDataSource(context, uri);
+            currentAudioPlayer.prepare();
+            currentAudioPlayer.start();
+            currentAudioPlayer.setOnCompletionListener(mp -> {
+                mp.release();
+                currentAudioPlayer = null;
+            });
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("MessageAdapter", "Error playing audio", e);
+            if (currentAudioPlayer != null) {
+                currentAudioPlayer.release();
+                currentAudioPlayer = null;
+            }
         }
     }
 
@@ -139,7 +224,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
         TextView text, sender, reactionContainer;
         ImageView image;
         View imageCard, audioContainer;
-        ImageButton audioPlayBtn;
+        ImageButton audioPlayBtn, saveImageBtn;
 
         MsgVH(View v) {
             super(v);
@@ -150,6 +235,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MsgVH> {
             reactionContainer = v.findViewById(R.id.reactionContainer);
             audioContainer = v.findViewById(R.id.audioContainer);
             audioPlayBtn = v.findViewById(R.id.audioPlayBtn);
+            saveImageBtn = v.findViewById(R.id.saveImageBtn);
         }
     }
 }

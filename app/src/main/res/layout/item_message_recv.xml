@@ -48,14 +48,33 @@
         app:strokeWidth="1dp"
         app:strokeColor="@color/card_border">
 
-        <ImageView
-            android:id="@+id/msgImage"
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:scaleType="centerCrop"
-            android:minHeight="100dp"
-            android:contentDescription="Received image" />
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:id="@+id/msgImage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:scaleType="centerCrop"
+                android:minHeight="100dp"
+                android:contentDescription="Received image" />
+
+            <ImageButton
+                android:id="@+id/saveImageBtn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_alignEnd="@id/msgImage"
+                android:layout_alignBottom="@id/msgImage"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_peer_avatar"
+                android:padding="6dp"
+                android:src="@drawable/ic_download"
+                app:tint="@color/white"
+                android:scaleType="fitCenter" />
+
+        </RelativeLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <LinearLayout
