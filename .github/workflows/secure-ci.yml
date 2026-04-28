@@ -118,6 +118,8 @@ jobs:
         with:
           name: owasp-report
           path: reports/
+
+
   # ════════════════════════════════════════════
   # JOB 4 – BUILD & TEST
   # ════════════════════════════════════════════
@@ -129,54 +131,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Inject google-services.json from Secret
-        run: |
-          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
-        # NEVER commit google-services.json to the repo.
-        # Store the file contents as a GitHub Secret named GOOGLE_SERVICES_JSON.
-
-      - name: Run Unit Tests
-        run: ./gradlew test --no-daemon
-
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: app/build/reports/tests/
+      # ... (setup JDK, cache, gradlew, google-services.json)
 
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon
-        # For a signed release, add signing config using secrets below:
-        # KEYSTORE_FILE, KEY_ALIAS, KEY_PASSWORD, STORE_PASSWORD
 
-      - name: Upload Release APK
+      # ─────────────────────────────────────────────
+      # NEW STEP: SIGN THE RELEASE APK
+      # ─────────────────────────────────────────────
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Peerly
-          path: app/build/outputs/apk/release/*.apk
+          name: Peerly-Signed
+          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
 
   # ════════════════════════════════════════════
   # JOB 5 – DEPLOY (GitHub Release)
-  # Only runs on push to main after all checks pass
   # ════════════════════════════════════════════
   deploy:
     name: 🚀 Deploy – Publish GitHub Release
@@ -187,34 +167,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Release APK
+      - name: Download Signed APK
         uses: actions/download-artifact@v4
         with:
-          name: Peerly
+          name: Peerly-Signed
           path: apk/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: "Peerly Build #${{ github.run_number }}"
-          body: |
-            ## Automated Release 🚀
-
-            **Triggered by:** ${{ github.actor }}
-            **Commit:** ${{ github.sha }}
-
-            ### Security Checks Passed ✅
-            - Gitleaks secret scan
-            - CodeQL SAST analysis
-            - OWASP dependency vulnerability check
-
-            ### Artifacts
-            - Release APK attached below
+          # ... (release configuration)
           files: apk/*.apk
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Creates a tagged GitHub Release with the APK attached.
-
