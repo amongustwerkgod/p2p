@@ -1,15 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
-        id("com.google.gms.google-services")
-
+    id("com.google.gms.google-services")
 }
-
 
 android {
     namespace = "com.example.Peerly"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     sourceSets {
         getByName("main") {
@@ -54,4 +50,8 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.fragment:fragment:1.6.2")
+    
+    // Glide for Images & GIFs
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
 }

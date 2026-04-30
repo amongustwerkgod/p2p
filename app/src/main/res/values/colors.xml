@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="space_bg">#03030F</color>
+    <color name="input_bar_bg">#0a0a22</color>
+    <color name="card_bg">#0a0a22</color>
+    <color name="card_border">#1e1e42</color>
+
+    <color name="text_primary">#E0E0FF</color>
+    <color name="text_secondary">#8080B0</color>
+
+    <color name="accent">#40D080</color>
+    <color name="accent_muted">#1E6640</color>
+    <color name="accent_glow">#4040D080</color>
+
+    <color name="online_green">#40D080</color>
+    <color name="online_glow">#3040D080</color>
+
+    <color name="bubble_sent">#1e1e42</color>
+    <color name="bubble_recv">#13132a</color>
+    <color name="bubble_recv_border">#1e1e42</color>
+
+    <color name="button_gradient_start">#40D080</color>
+    <color name="button_gradient_end">#1E6640</color>
+
+    <color name="white">#FFFFFF</color>
 </resources>
